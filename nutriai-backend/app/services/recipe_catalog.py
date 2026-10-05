@@ -134,14 +134,20 @@ def generate_recipe_catalog(target_count: int = 1500) -> List[Dict[str, Any]]:
         seen_names.add(r["name"].lower())
         recipe_id = max(recipe_id, r["id"] + 1)
 
-    # Round-robin proteins so vegetarian options aren't starved by chicken-first product()
-    outer = list(product(BASES, VEGETABLES[:12], SAUCES, COOKING_METHODS))
+    # Rotate full vegetable list so one veg (e.g. eggplant) isn't over-represented
+    outer = list(product(BASES, VEGETABLES, SAUCES, COOKING_METHODS))
     protein_idx = 0
     meal_types = list(MEAL_SLOTS.keys())
 
     for base, veg, sauce, method in outer:
         if len(recipes) >= target_count:
             break
+        # Skip combinations that would flood the catalog with the same veg early
+        if (recipe_id + protein_idx) % max(1, len(VEGETABLES)) == 0 and veg == "Eggplant":
+            # still allow eggplant, but less often than every cycle
+            if protein_idx % 3 != 0:
+                protein_idx += 1
+                continue
         protein = PROTEINS[protein_idx % len(PROTEINS)]
         protein_idx += 1
         meal_type = meal_types[recipe_id % len(meal_types)]

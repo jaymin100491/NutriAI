@@ -9,7 +9,7 @@ from copy import deepcopy
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
-from app.db.store import get_user_plan, get_user_preferences, next_plan_id, set_user_plan
+from app.db.store import get_user_plan, get_user_preferences, next_plan_id, set_user_plan, set_user_preferences
 from app.services.goal_service import get_goals_for_user
 from app.services.recipe_catalog import (
     HEALTH_GOAL_TAGS,
@@ -97,9 +97,17 @@ def _filter_recipes_for_user(
         haystack = f"{ingredients_text} {name_text}"
         tags = set(t.lower() for t in r.get("dietary_tags", []))
 
-        if any(a in haystack for a in allergies):
+        if any(a in haystack for a in allergies if a):
             continue
-        if any(d in haystack for d in dislikes):
+        # Dislikes: match whole tokens (eggplant, shrimp, etc.) in name or ingredients
+        blocked = False
+        for d in dislikes:
+            if not d:
+                continue
+            if d in haystack:
+                blocked = True
+                break
+        if blocked:
             continue
 
         if dietary == "vegetarian":
@@ -270,7 +278,18 @@ def generate_diet_plan(
     base_date = date.today()
     meals = []
     recent_ids: List[int] = []
-    rng = random.Random(user_id + int(base_date.strftime("%Y%m%d")))
+    # Seed changes when goals/prefs/dislikes change so regenerated plans aren't clones
+    seed_material = "|".join(
+        [
+            str(user_id),
+            base_date.isoformat(),
+            ",".join(goal_types),
+            prefs.get("dietary_preference", "omnivore"),
+            ",".join(sorted(prefs.get("dislikes", []))),
+            ",".join(cuisine_rotation),
+        ]
+    )
+    rng = random.Random(hash(seed_material) & 0xFFFFFFFF)
 
     for day in range(duration_days):
         day_date = base_date + timedelta(days=day)
@@ -432,15 +451,17 @@ def suggest_replacement_meal(
         # Remember key proteins / dish cues so we don't serve similar again
         tokens = [t for t in old_name.replace(",", " ").split() if len(t) > 3][:3]
         for token in tokens:
-            if token not in prefs["dislikes"]:
+            if token not in prefs.setdefault("dislikes", []):
                 prefs["dislikes"].append(token)
 
     if reason:
         prefs.setdefault("dislike_reasons", []).append({"meal": old_name, "reason": reason})
 
+    set_user_preferences(user_id, prefs)
+
     recent_ids = [m.get("recipe_id") for m in plan["meals"] if m.get("recipe_id")]
     primary_goal = plan.get("primary_goal") or "increase_energy"
-    rng = random.Random(user_id + day + hash(meal_type))
+    rng = random.Random(user_id + day + hash(meal_type) + hash(tuple(prefs.get("dislikes", []))))
     new_recipe = _pick_recipe(meal_type, user, primary_goal, recent_ids, rng)
 
     # Ensure we actually swapped

@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
-    DEMO_MODE: bool = False
+    DEMO_MODE: bool = True
 
     # API
     API_V1_PREFIX: str = "/api/v1"

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.core.crypto import encrypt_value
-from app.db.models import ChatMessageRecord, DietPlanRecord, GoalRecord, LabResultRecord, TrackingRecord, User
+from app.db.models import ChatMessageRecord, DietPlanRecord, GoalRecord, LabResultRecord, TrackingRecord, User, UserPreferenceRecord
 from app.services.okta_service import encrypt_access_token, serialize_cookies
 
 
@@ -266,3 +267,35 @@ def get_tracking_entries(db: Session, user_id: int, days: Optional[int] = None) 
         cutoff = (date.today() - timedelta(days=days - 1)).isoformat()
         entries = [e for e in entries if e.get("date", "") >= cutoff]
     return entries
+
+
+_DEFAULT_PREFS: Dict[str, Any] = {
+    "substitutions": {},
+    "dislikes": [],
+    "favorites": [],
+    "cuisine_preferences": [],
+    "dietary_preference": "omnivore",
+    "allergies": [],
+}
+
+
+def get_user_preferences(db: Session, user_id: int) -> Dict[str, Any]:
+    row = db.query(UserPreferenceRecord).filter(UserPreferenceRecord.user_id == user_id).first()
+    if not row:
+        return deepcopy(_DEFAULT_PREFS)
+    payload = dict(row.payload or {})
+    merged = deepcopy(_DEFAULT_PREFS)
+    merged.update(payload)
+    return merged
+
+
+def save_user_preferences(db: Session, user_id: int, prefs: Dict[str, Any]) -> Dict[str, Any]:
+    merged = deepcopy(_DEFAULT_PREFS)
+    merged.update(prefs)
+    row = db.query(UserPreferenceRecord).filter(UserPreferenceRecord.user_id == user_id).first()
+    if row:
+        row.payload = merged
+    else:
+        db.add(UserPreferenceRecord(user_id=user_id, payload=merged))
+    db.commit()
+    return merged

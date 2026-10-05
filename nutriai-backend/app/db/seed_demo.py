@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.db import repository as repo
 from app.db.models import DietPlanRecord, User
-from app.db.store import set_user_goals, get_user_preferences
+from app.db.store import set_user_goals, get_user_preferences, set_user_preferences
 from app.integrations.labcorp.adapter import generate_interpretation
 from app.services.diet_plan_engine import generate_diet_plan
 
@@ -246,6 +246,7 @@ def seed_demo_workspace(db: Session, user: User | None = None) -> User:
             "substitutions": {"tofu": "paneer"},
         }
     )
+    set_user_preferences(user.id, prefs)
 
     goals = [
         {

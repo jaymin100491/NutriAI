@@ -7,7 +7,7 @@ from app.schemas.diet_plan import DietPlanRequest, DietPlanResponse
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.db.models import DietPlanRecord
-from app.db.store import get_user_preferences
+from app.db.store import get_user_preferences, set_user_preferences
 from app.services.diet_plan_engine import (
     generate_diet_plan,
     get_or_create_plan,
@@ -157,6 +157,7 @@ async def update_preferences(
         prefs["cuisine_preferences"] = request.cuisine_preferences
     if request.allergies is not None:
         prefs["allergies"] = request.allergies
+    set_user_preferences(user_id, prefs)
 
     plan = None
     if request.regenerate_plan:

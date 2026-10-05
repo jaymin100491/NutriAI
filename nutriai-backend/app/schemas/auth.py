@@ -28,6 +28,10 @@ class AuthResponse(BaseModel):
     needs_lab_import: bool = False
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class OktaAuthorizeResponse(BaseModel):
     authorization_url: str
     state: str

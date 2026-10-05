@@ -1,17 +1,14 @@
 """
-Runtime store — diet plans, chat, goals persisted to database.
-User preferences (substitutions) remain in-memory until profile UI is built.
+Runtime store — diet plans, chat, goals, and preferences persisted to database.
 """
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from app.db.database import SessionLocal
 from app.db import repository as repo
 
-_user_preferences: Dict[int, Dict[str, Any]] = {}
 _plan_id_counter = 1
 
 
@@ -63,19 +60,25 @@ def clear_chat_history(user_id: int) -> None:
 
 
 def get_user_preferences(user_id: int) -> Dict[str, Any]:
-    if user_id not in _user_preferences:
-        _user_preferences[user_id] = {
-            "substitutions": {},
-            "dislikes": [],
-            "favorites": [],
-            "cuisine_preferences": [],
-        }
-    return _user_preferences[user_id]
+    db = SessionLocal()
+    try:
+        return repo.get_user_preferences(db, user_id)
+    finally:
+        db.close()
+
+
+def set_user_preferences(user_id: int, prefs: Dict[str, Any]) -> Dict[str, Any]:
+    db = SessionLocal()
+    try:
+        return repo.save_user_preferences(db, user_id, prefs)
+    finally:
+        db.close()
 
 
 def add_substitution_preference(user_id: int, swap_from: str, swap_to: str) -> None:
     prefs = get_user_preferences(user_id)
-    prefs["substitutions"][swap_from.lower()] = swap_to.lower()
+    prefs.setdefault("substitutions", {})[swap_from.lower()] = swap_to.lower()
+    set_user_preferences(user_id, prefs)
 
 
 def get_user_goals(user_id: int) -> Optional[List[Dict[str, Any]]]:

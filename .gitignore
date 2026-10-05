@@ -48,6 +48,10 @@ nutriai-mobile/
 # Logs
 *.log
 
+# Local-only deploy / personal runbooks (do not commit)
+LOCAL_DEPLOY_FIREBASE_CLOUDRUN.md
+*_LOCAL_ONLY.md
+
 # Local working notes / status docs (keep on disk, not in GitHub)
 AI-DIETITIAN-APP-TECHNICAL-SPECIFICATION.md
 COMPLETION_REPORT.md

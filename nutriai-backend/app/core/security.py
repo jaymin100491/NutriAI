@@ -15,12 +15,21 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 
+def _password_bytes(password: str) -> str:
+    """bcrypt only uses first 72 bytes — truncate safely for passlib/bcrypt compatibility."""
+    raw = password.encode("utf-8")[:72]
+    return raw.decode("utf-8", errors="ignore")
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(_password_bytes(plain_password), hashed_password)
+    except Exception:
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_password_bytes(password))
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
