@@ -57,7 +57,10 @@ async def add_goal(
 ):
     """
     Add any goal — catalog type or free text like 'build muscle' / 'lower blood pressure' /
-    'more protein for gym' — then regenerate the meal plan around it.
+    'improve skin and nails' / anything new — then regenerate the meal plan around it.
+
+    If OPENAI_API_KEY or ANTHROPIC_API_KEY is set, unknown free-text goals are interpreted
+    by AI into calories/macros/tags; the catalog engine still builds the 7-day meals.
     """
     try:
         goals = add_user_goal(
@@ -71,6 +74,7 @@ async def add_goal(
 
     ordered = [g["goal_type"] for g in goals]
     plan = generate_diet_plan(current_user, goals_override=ordered)
+    primary = next((g for g in goals if g.get("priority") == 1), goals[0] if goals else {})
     return {
         "goals": goals,
         "total": len(goals),
@@ -79,6 +83,8 @@ async def add_goal(
         "primary_goal": plan.get("primary_goal"),
         "target_calories": plan.get("target_calories"),
         "macro_targets": plan.get("macro_targets"),
+        "goal_source": primary.get("source"),
+        "ai_interpreted": bool((primary.get("nutrition_profile") or {}).get("ai_interpreted")),
     }
 
 

@@ -331,20 +331,49 @@ def resolve_goal_request(
             }
 
     nutrition = _infer_custom_nutrition(raw)
-    slug = _slugify_goal(raw)
-    return {
-        "goal_type": f"custom_{slug}",
-        "label": raw[:80],
-        "description": (
+    ai_profile = None
+    try:
+        from app.services.goal_ai import interpret_goal_with_ai, ai_available
+
+        if ai_available():
+            ai_profile = interpret_goal_with_ai(raw)
+    except Exception:
+        ai_profile = None
+
+    if ai_profile:
+        nutrition = {
+            "calories": ai_profile["calories"],
+            "macros": ai_profile["macros"],
+            "health_tags": ai_profile["health_tags"],
+            "demo_safe": True,
+            "ai_interpreted": True,
+        }
+        label = ai_profile.get("label") or raw[:80]
+        description = (
+            f"{ai_profile.get('summary', '')} "
+            f"Mapped by NutriAI to ~{nutrition['calories']} kcal/day "
+            f"({nutrition['macros']['protein_percent']}% protein)."
+        ).strip()
+        source = "ai_custom"
+    else:
+        label = raw[:80]
+        description = (
             f"Custom goal: {raw}. "
             f"NutriAI mapped this to ~{nutrition['calories']} kcal/day with "
             f"{nutrition['macros']['protein_percent']}% protein focus for a full personalized week."
-        ),
+        )
+        source = "user_custom"
+
+    slug = _slugify_goal(raw)
+    return {
+        "goal_type": f"custom_{slug}",
+        "label": label[:80],
+        "description": description[:400],
         "target_value": None,
         "current_value": None,
         "unit": "",
         "status": "active",
-        "source": "user_custom",
+        "source": source,
         "triggered_by": raw,
         "nutrition_profile": nutrition,
     }

@@ -107,11 +107,14 @@ class _AddGoalSheetState extends ConsumerState<_AddGoalSheet> {
       Navigator.pop(context);
       final title = result['plan_title'] ?? 'your meal plan';
       final cals = result['target_calories'];
+      final ai = result['ai_interpreted'] == true;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             cals != null
-                ? 'Goal added — regenerated $title (~$cals kcal)'
+                ? (ai
+                    ? 'AI mapped your goal — regenerated $title (~$cals kcal)'
+                    : 'Goal added — regenerated $title (~$cals kcal)')
                 : 'Goal added — meal plan regenerated',
           ),
         ),
