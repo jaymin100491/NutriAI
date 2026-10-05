@@ -49,12 +49,34 @@ class AuthRepository {
     return authResponse;
   }
 
+  Future<AuthResponse> signup(SignupRequest request) async {
+    final response = await _dio.post(
+      ApiConstants.signup,
+      data: request.toJson(),
+    );
+    final authResponse = AuthResponse.fromJson(response.data as Map<String, dynamic>);
+    await _persistSession(authResponse);
+    return authResponse;
+  }
+
   Future<void> _persistSession(AuthResponse authResponse) async {
     await _storage.write(key: 'access_token', value: authResponse.tokens.accessToken);
     await _storage.write(key: 'refresh_token', value: authResponse.tokens.refreshToken);
     await _storage.write(key: 'user_id', value: authResponse.user.id.toString());
     await _storage.write(key: 'user_email', value: authResponse.user.email);
     await _storage.write(key: 'user_name', value: authResponse.user.fullName);
+    await _storage.write(
+      key: 'needs_lab_import',
+      value: authResponse.needsLabImport ? 'true' : 'false',
+    );
+  }
+
+  Future<bool> needsLabImport() async {
+    return (await _storage.read(key: 'needs_lab_import')) == 'true';
+  }
+
+  Future<void> clearNeedsLabImport() async {
+    await _storage.write(key: 'needs_lab_import', value: 'false');
   }
 
   Future<void> logout() async {

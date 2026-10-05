@@ -8,9 +8,15 @@ from app.schemas.auth import (
     LoginRequest,
     OktaAuthorizeResponse,
     OktaCallbackRequest,
+    SignupRequest,
     TokenResponse,
 )
-from app.core.security import create_access_token, get_current_user
+from app.core.security import (
+    create_access_token,
+    get_current_user,
+    get_password_hash,
+    verify_password,
+)
 from app.core.config import settings
 from app.db.database import get_db
 from app.db import repository as repo
@@ -61,6 +67,10 @@ def _user_payload(user) -> dict:
     }
 
 
+def _needs_lab_import(db: Session, user_id: int) -> bool:
+    return len(repo.get_lab_results(db, user_id)) == 0
+
+
 @router.get("/okta/authorize", response_model=OktaAuthorizeResponse)
 async def okta_authorize():
     """
@@ -108,7 +118,6 @@ async def okta_callback(request: OktaCallbackRequest, db: Session = Depends(get_
             detail=f"Labcorp portal login failed: {exc}",
         ) from exc
 
-    # Decode Okta ID token claims if present, else use portal patient email
     email = portal_patient.get("loginEmail") or portal_patient.get("email") or "patient@labcorp.com"
     okta_sub = str(portal_patient.get("id") or email)
 
@@ -127,51 +136,97 @@ async def okta_callback(request: OktaCallbackRequest, db: Session = Depends(get_
         "user": _user_payload(user),
         "tokens": _issue_tokens(user),
         "okta_access_token": access_token,
+        "needs_lab_import": _needs_lab_import(db, user.id),
+    }
+
+
+@router.post("/signup", response_model=AuthResponse)
+async def signup(request: SignupRequest, db: Session = Depends(get_db)):
+    """Create an account — next step is paste lab results into NutriAI."""
+    email = request.email.strip().lower()
+    if repo.get_user_by_email(db, email):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists. Please sign in.",
+        )
+
+    user = repo.create_password_user(
+        db,
+        email=email,
+        password_hash=get_password_hash(request.password),
+        first_name=request.first_name,
+        last_name=request.last_name,
+    )
+    return {
+        "user": _user_payload(user),
+        "tokens": _issue_tokens(user),
+        "needs_lab_import": True,
     }
 
 
 @router.post("/login", response_model=AuthResponse)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Open-market / demo login — only when DEMO_MODE=true."""
-    if not settings.DEMO_MODE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Demo login is disabled.",
-        )
-
+    """Email/password login. Demo account works when DEMO_MODE=true."""
     from app.db.models import User as UserModel
-    from app.db.seed_demo import DEMO_EMAIL, seed_demo_workspace
+    from app.db.seed_demo import DEMO_EMAIL, DEMO_PASSWORD_HINT, seed_demo_workspace
 
     email = request.email.strip().lower()
+    password = request.password
 
-    # Primary demo account with full multi-year timeline
-    if email == DEMO_EMAIL:
+    if settings.DEMO_MODE and email == DEMO_EMAIL:
+        if password != DEMO_PASSWORD_HINT:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+            )
         db_user = seed_demo_workspace(db)
+        if not db_user.password_hash:
+            db_user.password_hash = get_password_hash(DEMO_PASSWORD_HINT)
+            db.commit()
+            db.refresh(db_user)
         return {
             "user": _user_payload(db_user),
             "tokens": _issue_tokens(db_user),
+            "needs_lab_import": False,
         }
 
-    user = next((u for u in MOCK_USERS if u["email"].lower() == email), None)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
+    db_user = repo.get_user_by_email(db, email)
+    if db_user and db_user.password_hash:
+        if not verify_password(password, db_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+            )
+        return {
+            "user": _user_payload(db_user),
+            "tokens": _issue_tokens(db_user),
+            "needs_lab_import": _needs_lab_import(db, db_user.id),
+        }
 
-    db_user = db.query(UserModel).filter(UserModel.email == email).first()
-    if not db_user:
-        db_user = UserModel(
-            email=user["email"],
-            first_name=user["first_name"],
-            last_name=user["last_name"],
-            subscription_tier=user["subscription_tier"],
-        )
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
+    if settings.DEMO_MODE:
+        user = next((u for u in MOCK_USERS if u["email"].lower() == email), None)
+        if user:
+            if not db_user:
+                db_user = UserModel(
+                    email=user["email"],
+                    first_name=user["first_name"],
+                    last_name=user["last_name"],
+                    subscription_tier=user["subscription_tier"],
+                    password_hash=get_password_hash(password),
+                )
+                db.add(db_user)
+                db.commit()
+                db.refresh(db_user)
+            return {
+                "user": _user_payload(db_user),
+                "tokens": _issue_tokens(db_user),
+                "needs_lab_import": _needs_lab_import(db, db_user.id),
+            }
 
-    return {
-        "user": _user_payload(db_user),
-        "tokens": _issue_tokens(db_user),
-    }
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Incorrect email or password",
+    )
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -195,4 +250,6 @@ async def auth_me(current_user: dict = Depends(get_current_user), db: Session = 
     user = repo.get_user_by_id(db, int(current_user["id"]))
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return _user_payload(user)
+    payload = _user_payload(user)
+    payload["needs_lab_import"] = _needs_lab_import(db, user.id)
+    return payload

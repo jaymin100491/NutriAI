@@ -8,6 +8,7 @@ class ApiConstants {
   static String get oktaAuthorize => '$apiV1/auth/okta/authorize';
   static String get oktaCallback => '$apiV1/auth/okta/callback';
   static String get login => '$apiV1/auth/login';
+  static String get signup => '$apiV1/auth/signup';
   static String get refresh => '$apiV1/auth/refresh';
   static String get authMe => '$apiV1/auth/me';
 
@@ -17,6 +18,7 @@ class ApiConstants {
   static const String labResults = '$apiV1/lab-results';
   static const String labResultsSync = '$apiV1/lab-results/sync';
   static const String labResultsImportFromPortal = '$apiV1/lab-results/import-from-portal';
+  static const String labResultsPaste = '$apiV1/lab-results/paste';
   static const String latestLabResult = '$apiV1/lab-results/latest';
 
   static const String currentDietPlan = '$apiV1/diet-plans/current';

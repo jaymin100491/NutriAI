@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/lab_result_model.dart';
 import '../../providers/lab_result_provider.dart';
+import '../labs/paste_labs_screen.dart';
 import '../retest/retest_screen.dart';
 import 'lab_result_detail_screen.dart';
 
@@ -25,6 +26,17 @@ class LabResultsListScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.content_paste),
+            tooltip: 'Paste lab results',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const PasteLabsScreen(allowSkip: false),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.sync),
             tooltip: 'Refresh labs',
             onPressed: () => ref.read(allLabResultsProvider.notifier).sync(),
@@ -45,16 +57,23 @@ class LabResultsListScreen extends ConsumerWidget {
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 40),
                     child: Text(
-                      'Connect MyChart or import results to unlock your personalized nutrition plan.',
+                      'Paste markers from MyChart / Labcorp for this demo. '
+                      'Later we will sync automatically from connected systems.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppTheme.textSecondaryColor),
                     ),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
-                    onPressed: () => ref.read(allLabResultsProvider.notifier).sync(),
-                    icon: const Icon(Icons.download),
-                    label: const Text('Load Demo Labs'),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const PasteLabsScreen(allowSkip: false),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.content_paste),
+                    label: const Text('Paste lab results'),
                   ),
                 ],
               ),

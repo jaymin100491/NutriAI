@@ -15,12 +15,14 @@ class AuthState {
   final bool isLoading;
   final UserData? user;
   final String? error;
+  final bool needsLabImport;
 
   AuthState({
     this.isAuthenticated = false,
     this.isLoading = false,
     this.user,
     this.error,
+    this.needsLabImport = false,
   });
 
   AuthState copyWith({
@@ -28,12 +30,14 @@ class AuthState {
     bool? isLoading,
     UserData? user,
     String? error,
+    bool? needsLabImport,
   }) {
     return AuthState(
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isLoading: isLoading ?? this.isLoading,
       user: user ?? this.user,
       error: error,
+      needsLabImport: needsLabImport ?? this.needsLabImport,
     );
   }
 }
@@ -51,8 +55,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final userData = await _authRepository.getUserData();
       if (userData != null) {
         final nameParts = userData['name']!.split(' ');
+        final needsLabs = await _authRepository.needsLabImport();
         state = state.copyWith(
           isAuthenticated: true,
+          needsLabImport: needsLabs,
           user: UserData(
             id: int.parse(userData['id']!),
             email: userData['email']!,
@@ -107,6 +113,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isAuthenticated: true,
         isLoading: false,
         user: response.user,
+        needsLabImport: response.needsLabImport,
         error: null,
       );
     } catch (e) {
@@ -116,6 +123,43 @@ class AuthNotifier extends StateNotifier<AuthState> {
         error: e.toString(),
       );
     }
+  }
+
+  Future<void> signup({
+    required String email,
+    required String password,
+    required String firstName,
+    String lastName = '',
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final response = await _authRepository.signup(
+        SignupRequest(
+          email: email,
+          password: password,
+          firstName: firstName,
+          lastName: lastName,
+        ),
+      );
+      state = state.copyWith(
+        isAuthenticated: true,
+        isLoading: false,
+        user: response.user,
+        needsLabImport: response.needsLabImport,
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isAuthenticated: false,
+        isLoading: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  Future<void> markLabsImported() async {
+    await _authRepository.clearNeedsLabImport();
+    state = state.copyWith(needsLabImport: false);
   }
 
   Future<void> logout() async {

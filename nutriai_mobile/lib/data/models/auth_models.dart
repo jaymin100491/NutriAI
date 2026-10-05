@@ -18,15 +18,41 @@ class LoginRequest extends Equatable {
   List<Object?> get props => [email, password];
 }
 
+class SignupRequest extends Equatable {
+  final String email;
+  final String password;
+  final String firstName;
+  final String lastName;
+
+  const SignupRequest({
+    required this.email,
+    required this.password,
+    required this.firstName,
+    this.lastName = '',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'email': email,
+        'password': password,
+        'first_name': firstName,
+        'last_name': lastName,
+      };
+
+  @override
+  List<Object?> get props => [email, password, firstName, lastName];
+}
+
 class AuthResponse extends Equatable {
   final UserData user;
   final TokenData tokens;
   final String? oktaAccessToken;
+  final bool needsLabImport;
 
   const AuthResponse({
     required this.user,
     required this.tokens,
     this.oktaAccessToken,
+    this.needsLabImport = false,
   });
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
@@ -34,11 +60,12 @@ class AuthResponse extends Equatable {
       user: UserData.fromJson(json['user'] as Map<String, dynamic>),
       tokens: TokenData.fromJson(json['tokens'] as Map<String, dynamic>),
       oktaAccessToken: json['okta_access_token'] as String?,
+      needsLabImport: json['needs_lab_import'] as bool? ?? false,
     );
   }
 
   @override
-  List<Object?> get props => [user, tokens, oktaAccessToken];
+  List<Object?> get props => [user, tokens, oktaAccessToken, needsLabImport];
 }
 
 class UserData extends Equatable {

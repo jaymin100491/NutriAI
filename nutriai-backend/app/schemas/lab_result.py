@@ -46,3 +46,11 @@ class PortalImportRequest(BaseModel):
     """Raw patient portal JSON fetched from the browser (same as patient-website-ui)."""
     headers: List[Dict[str, Any]]
     reports: List[Dict[str, Any]] = []
+
+
+class PasteLabRequest(BaseModel):
+    """Copy-paste lab panel text from MyChart / Labcorp / employer portal."""
+    text: str
+    test_date: Optional[str] = None
+    panel_title: Optional[str] = None
+    source_label: Optional[str] = "pasted_panel"

@@ -24,6 +24,27 @@ class LabResultsNotifier extends AsyncNotifier<List<LabResult>> {
       return repository.syncFromLabcorp();
     });
   }
+
+  Future<String?> pasteLabs({
+    required String text,
+    String? testDate,
+    String? panelTitle,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final repository = ref.read(labResultRepositoryProvider);
+      final results = await repository.pasteLabText(
+        text: text,
+        testDate: testDate,
+        panelTitle: panelTitle,
+      );
+      state = AsyncValue.data(results);
+      return null;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return e.toString();
+    }
+  }
 }
 
 final latestLabResultProvider = FutureProvider<LabResult?>((ref) async {

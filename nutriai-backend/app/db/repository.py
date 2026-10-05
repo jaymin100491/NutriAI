@@ -68,6 +68,52 @@ def save_lab_results(db: Session, user_id: int, results: List[Dict[str, Any]]) -
     db.commit()
 
 
+def upsert_lab_results(db: Session, user_id: int, results: List[Dict[str, Any]]) -> None:
+    """Merge panels by id without wiping the user's existing history."""
+    for result in results:
+        result_id = int(result["id"])
+        row = db.query(LabResultRecord).filter(LabResultRecord.id == result_id).first()
+        if row:
+            row.payload = result
+            row.test_date = result.get("test_date")
+            row.user_id = user_id
+        else:
+            db.add(
+                LabResultRecord(
+                    id=result_id,
+                    user_id=user_id,
+                    payload=result,
+                    test_date=result.get("test_date"),
+                )
+            )
+    db.commit()
+
+
+def create_password_user(
+    db: Session,
+    *,
+    email: str,
+    password_hash: str,
+    first_name: str,
+    last_name: str = "",
+) -> User:
+    user = User(
+        email=email.strip().lower(),
+        password_hash=password_hash,
+        first_name=first_name.strip(),
+        last_name=(last_name or "").strip(),
+        subscription_tier="premium",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_user_by_email(db: Session, email: str) -> Optional[User]:
+    return db.query(User).filter(User.email == email.strip().lower()).first()
+
+
 def get_lab_results(db: Session, user_id: int) -> List[Dict[str, Any]]:
     rows = (
         db.query(LabResultRecord)

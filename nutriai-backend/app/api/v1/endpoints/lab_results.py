@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.schemas.lab_result import LabResultResponse, LabResultListResponse, LabSyncResponse, PortalImportRequest
+from app.schemas.lab_result import (
+    LabResultResponse,
+    LabResultListResponse,
+    LabSyncResponse,
+    PortalImportRequest,
+    PasteLabRequest,
+)
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.db import repository as repo
@@ -13,6 +19,7 @@ from app.services.lab_result_service import (
     import_portal_results_for_user,
     get_nutrition_relevant_history,
 )
+from app.services.lab_paste_parser import build_pasted_lab_result
 from app.integrations.registry import list_health_systems
 
 router = APIRouter()
@@ -94,6 +101,55 @@ async def import_lab_results_from_portal(
     }
 
 
+@router.post("/paste", response_model=LabSyncResponse)
+async def paste_lab_results(
+    payload: PasteLabRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Demo-friendly import: user pastes lab panel text from MyChart / Labcorp / any portal.
+    Stored in NutriAI DB. Future: automatic EHR sync replaces this step.
+    """
+    user_id = int(current_user["id"])
+    user = repo.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    text = (payload.text or "").strip()
+    if len(text) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Paste at least one lab marker line from your results panel.",
+        )
+
+    try:
+        patient_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "Patient"
+        panel = build_pasted_lab_result(
+            user_id=user_id,
+            text=text,
+            test_date=payload.test_date,
+            panel_title=payload.panel_title,
+            source_label=payload.source_label or "pasted_panel",
+            patient_name=patient_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    repo.upsert_lab_results(db, user_id, [panel])
+    results = get_lab_results_for_user(db, user_id)
+    marker_count = len(panel.get("results", {}).get("tests", []))
+
+    return {
+        "synced_count": 1,
+        "lab_results": results,
+        "message": (
+            f"Saved {marker_count} markers from pasted panel. "
+            "Later this will sync automatically from connected health systems."
+        ),
+    }
+
+
 @router.get("/latest", response_model=LabResultResponse)
 async def get_latest_lab_result_endpoint(
     current_user: dict = Depends(get_current_user),
@@ -132,6 +188,10 @@ async def list_supported_health_systems():
             "environment": "demo",
             "auth": "Open account login",
             "fulfillment": "Follow-up lab scheduling via Labcorp only",
+        },
+        "current_import": {
+            "method": "copy_paste",
+            "note": "Users paste panel text today; automatic multi-system fetch is the roadmap.",
         },
     }
 

@@ -1,10 +1,17 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=4, max_length=128)
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(default="", max_length=100)
 
 
 class TokenResponse(BaseModel):
@@ -18,6 +25,7 @@ class AuthResponse(BaseModel):
     user: dict
     tokens: TokenResponse
     okta_access_token: Optional[str] = None
+    needs_lab_import: bool = False
 
 
 class OktaAuthorizeResponse(BaseModel):

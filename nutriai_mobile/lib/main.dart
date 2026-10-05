@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/screens/auth/login_screen.dart';
+import 'presentation/screens/labs/paste_labs_screen.dart';
 import 'presentation/screens/main_navigation_screen.dart';
 import 'presentation/providers/auth_provider.dart';
 
@@ -47,8 +48,11 @@ class _AppEntryState extends ConsumerState<AppEntry> {
 
     final authState = ref.read(authProvider);
     if (authState.isAuthenticated) {
+      final next = authState.needsLabImport
+          ? const PasteLabsScreen()
+          : const MainNavigationScreen();
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        MaterialPageRoute(builder: (_) => next),
       );
     } else {
       Navigator.of(context).pushReplacement(

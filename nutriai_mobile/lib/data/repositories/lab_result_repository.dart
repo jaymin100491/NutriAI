@@ -29,19 +29,43 @@ class LabResultRepository {
 
   Future<List<LabResult>> syncFromLabcorp() async {
     if (kIsWeb) {
-      final portalPayload = await _portalRepository.fetchAllResultsForImport();
-      final response = await _dioClient.dio.post(
-        ApiConstants.labResultsImportFromPortal,
-        data: portalPayload,
-      );
-      final data = response.data as Map<String, dynamic>;
-      final results = data['lab_results'] as List<dynamic>;
-      return results.map((json) => LabResult.fromJson(json as Map<String, dynamic>)).toList();
+      try {
+        final portalPayload = await _portalRepository.fetchAllResultsForImport();
+        final response = await _dioClient.dio.post(
+          ApiConstants.labResultsImportFromPortal,
+          data: portalPayload,
+        );
+        final data = response.data as Map<String, dynamic>;
+        final results = data['lab_results'] as List<dynamic>;
+        return results.map((json) => LabResult.fromJson(json as Map<String, dynamic>)).toList();
+      } catch (_) {
+        // Portal session optional for open-market demo — fall through to empty/manual paste.
+        return getAllLabResults();
+      }
     }
 
     final response = await _dioClient.dio.post(
       ApiConstants.labResultsSync,
       queryParameters: {'source': 'labcorp', 'health_system': 'labcorp'},
+    );
+    final data = response.data as Map<String, dynamic>;
+    final results = data['lab_results'] as List<dynamic>;
+    return results.map((json) => LabResult.fromJson(json as Map<String, dynamic>)).toList();
+  }
+
+  Future<List<LabResult>> pasteLabText({
+    required String text,
+    String? testDate,
+    String? panelTitle,
+  }) async {
+    final response = await _dioClient.dio.post(
+      ApiConstants.labResultsPaste,
+      data: {
+        'text': text,
+        if (testDate != null && testDate.isNotEmpty) 'test_date': testDate,
+        if (panelTitle != null && panelTitle.isNotEmpty) 'panel_title': panelTitle,
+        'source_label': 'pasted_panel',
+      },
     );
     final data = response.data as Map<String, dynamic>;
     final results = data['lab_results'] as List<dynamic>;
