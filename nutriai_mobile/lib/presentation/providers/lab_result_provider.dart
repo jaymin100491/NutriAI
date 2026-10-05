@@ -1,0 +1,36 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/network/dio_client.dart';
+import '../../data/models/lab_result_model.dart';
+import '../../data/repositories/lab_result_repository.dart';
+
+final labResultRepositoryProvider = Provider<LabResultRepository>((ref) {
+  return LabResultRepository(ref.watch(dioClientProvider));
+});
+
+final allLabResultsProvider =
+    AsyncNotifierProvider<LabResultsNotifier, List<LabResult>>(LabResultsNotifier.new);
+
+class LabResultsNotifier extends AsyncNotifier<List<LabResult>> {
+  @override
+  Future<List<LabResult>> build() async {
+    final repository = ref.watch(labResultRepositoryProvider);
+    return repository.getAllLabResults();
+  }
+
+  Future<void> sync() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final repository = ref.read(labResultRepositoryProvider);
+      return repository.syncFromLabcorp();
+    });
+  }
+}
+
+final latestLabResultProvider = FutureProvider<LabResult?>((ref) async {
+  final repository = ref.watch(labResultRepositoryProvider);
+  try {
+    return await repository.getLatestLabResult();
+  } catch (e) {
+    return null;
+  }
+});

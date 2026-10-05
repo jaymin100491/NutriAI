@@ -1,0 +1,21 @@
+# This file configures the analyzer, which statically analyzes Dart code to
+# check for errors, warnings, and lints.
+#
+# The issues identified by the analyzer are surfaced in the IDE and in any
+# command-line output from the analyzer. IDE integrations of the linter include
+# VS Code, Android Studio, and IntelliJ IDEA.
+
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_const_literals_to_create_immutables
+    - avoid_print
+    - prefer_single_quotes
+    - always_declare_return_types
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"

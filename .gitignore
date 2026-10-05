@@ -1,0 +1,68 @@
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+.claude/
+*.iml
+
+# Secrets & local env
+.env
+.env.*
+!.env.example
+**/.env
+!**/.env.example
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/*.egg-info/
+**/.mypy_cache/
+
+# Local databases
+**/*.db
+**/*.db-journal
+**/nutriai.db
+
+# Flutter / Dart
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/build/
+**/coverage/
+**/*.symbols
+**/app.*.map.json
+
+# Local TLS certs (Okta / HTTPS demos)
+**/certs/
+**/*.pem
+**/*.key
+
+# Empty / leftover
+nutriai-mobile/
+
+# Logs
+*.log
+
+# Local working notes / status docs (keep on disk, not in GitHub)
+AI-DIETITIAN-APP-TECHNICAL-SPECIFICATION.md
+COMPLETION_REPORT.md
+FINAL_PROJECT_SUMMARY.md
+FINAL_STATUS.md
+FIX_CHROME_PROXY.md
+FLUTTER_INSTALLED.md
+FLUTTER_SCREENS_COMPLETED.md
+INSTALLATION_STATUS.md
+INSTALL_FLUTTER.md
+MARKET_READY.md
+PROJECT_STATUS.md
+PROJECT_SUMMARY.md
+PROJECT_TREE.txt
+QUICK_TEST_GUIDE.md
+SETUP_GUIDE.md
+analysis.json
+test_flutter.sh
