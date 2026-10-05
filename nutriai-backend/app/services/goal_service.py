@@ -167,19 +167,19 @@ GOAL_DEFINITIONS = {
 
 # Free-text → known goal mapping (first match wins by specificity order)
 _GOAL_ALIASES = [
-    (("blood pressure", "hypertension", "bp ", " high bp"), "lower_blood_pressure"),
-    (("cholesterol", "ldl", "triglyceride", "lipid"), "lower_cholesterol"),
-    (("blood sugar", "diabetes", "glucose", "a1c", "hba1c", "prediabet"), "manage_diabetes"),
-    (("lose weight", "weight loss", "fat loss", "slim"), "weight_loss"),
+    (("blood pressure", "hypertension", "bp ", " high bp", "lower bp"), "lower_blood_pressure"),
+    (("cholesterol", "ldl", "triglyceride", "lipid", "hdl"), "lower_cholesterol"),
+    (("blood sugar", "diabetes", "glucose", "a1c", "hba1c", "prediabet", "insulin"), "manage_diabetes"),
+    (("lose weight", "weight loss", "fat loss", "slim", "cut fat", "lose fat"), "weight_loss"),
     (("gain weight", "underweight", "put on weight"), "weight_gain"),
-    (("muscle", "bulk", "strength", "hypertrophy", "gain muscle"), "muscle_gain"),
+    (("muscle", "bulk", "strength", "hypertrophy", "gain muscle", "toned", "gym"), "muscle_gain"),
     (("more protein", "high protein", "protein intake", "extra protein"), "more_protein"),
     (("vitamin d", "vit d"), "increase_vitamin_d"),
-    (("inflammation", "anti-inflammatory", "arthritis"), "reduce_inflammation"),
-    (("gut", "digestion", "bloating", "microbiome", "constipation"), "gut_health"),
-    (("energy", "fatigue", "tired", "iron", "b12"), "increase_energy"),
-    (("sleep", "insomnia", "rest"), "better_sleep"),
-    (("athletic", "training", "workout", "performance", "endurance"), "athletic_performance"),
+    (("inflammation", "anti-inflammatory", "arthritis", "joint pain", "skin", "acne"), "reduce_inflammation"),
+    (("gut", "digestion", "bloating", "microbiome", "constipation", "ibs"), "gut_health"),
+    (("energy", "fatigue", "tired", "iron", "b12", "focus", "brain"), "increase_energy"),
+    (("sleep", "insomnia", "rest", "sleep better"), "better_sleep"),
+    (("athletic", "training", "workout", "performance", "endurance", "sports"), "athletic_performance"),
     (("heart", "cardiac", "cardiovascular"), "heart_health"),
     (("kidney", "renal", "egfr", "creatinine"), "kidney_support"),
 ]
@@ -206,33 +206,54 @@ def _slugify_goal(text: str) -> str:
 
 
 def _infer_custom_nutrition(text: str) -> Dict[str, Any]:
-    """Heuristic nutrition profile when the user types something outside the catalog."""
-    t = text.lower()
+    """
+    Always return a complete, demo-safe nutrition profile for any free-text goal.
+    Random/unknown goals still get a balanced high-quality plan (never empty/broken).
+    """
+    t = (text or "").lower().strip()
     calories = 1900
-    protein = 25
-    carbs = 45
+    protein = 28
+    carbs = 42
     fat = 30
-    fiber = 30
-    tags = ["balanced", "nutrient-dense"]
+    fiber = 32
+    tags = ["balanced", "nutrient-dense", "high-fiber"]
 
-    if any(k in t for k in ("protein", "muscle", "strength", "gym")):
-        protein, carbs, fat, calories = 35, 40, 25, 2300
-        tags = ["high-protein", "lean"]
-    if any(k in t for k in ("gain", "bulk", "calories", "appetite")):
+    if any(k in t for k in ("protein", "muscle", "strength", "gym", "toned", "lift")):
+        protein, carbs, fat, calories = 35, 38, 27, 2300
+        tags = ["high-protein", "lean", "nutrient-dense"]
+    if any(k in t for k in ("gain", "bulk", "appetite", "underweight", "mass")):
         calories = max(calories, 2500)
-        tags = list(set(tags + ["high-protein", "nutrient-dense"]))
-    if any(k in t for k in ("lose", "cut", "deficit", "slim")):
-        calories = 1600
         protein = max(protein, 30)
-        tags = list(set(tags + ["lean", "high-protein", "high-fiber"]))
-    if any(k in t for k in ("plant", "vegan", "fiber", "gut")):
+        tags = list(set(tags + ["high-protein", "nutrient-dense", "complex-carbs"]))
+    if any(k in t for k in ("lose", "cut", "deficit", "slim", "fat loss", "weight loss", "lighter")):
+        calories = 1600
+        protein = max(protein, 32)
+        carbs = 38
+        fiber = 35
+        tags = list(set(tags + ["lean", "high-protein", "high-fiber", "low-carb"]))
+    if any(k in t for k in ("plant", "vegan", "fiber", "gut", "digest", "bloating")):
         fiber = 40
-        tags = list(set(tags + ["plant-based", "high-fiber"]))
-    if any(k in t for k in ("anti-inflam", "joint", "inflam")):
-        tags = list(set(tags + ["anti-inflammatory", "omega-3"]))
-    if any(k in t for k in ("low sodium", "salt", "pressure")):
+        tags = list(set(tags + ["plant-based", "high-fiber", "probiotic"]))
+    if any(k in t for k in ("anti-inflam", "joint", "inflam", "skin", "acne")):
+        tags = list(set(tags + ["anti-inflammatory", "omega-3", "antioxidant-rich"]))
+    if any(k in t for k in ("low sodium", "salt", "pressure", "hypertension", "heart")):
         fat = 25
-        tags = list(set(tags + ["low-sodium-option", "heart-healthy"]))
+        tags = list(set(tags + ["low-sodium-option", "heart-healthy", "potassium-rich"]))
+    if any(k in t for k in ("sugar", "glucose", "diabetes", "a1c", "carb")):
+        carbs = 38
+        fiber = 36
+        protein = max(protein, 28)
+        tags = list(set(tags + ["low-glycemic", "high-fiber", "balanced", "complex-carbs"]))
+    if any(k in t for k in ("energy", "fatigue", "tired", "focus", "brain", "iron")):
+        calories = max(calories, 1950)
+        tags = list(set(tags + ["iron-rich", "complex-carbs", "balanced"]))
+    if any(k in t for k in ("sleep", "insomnia", "rest", "night")):
+        tags = list(set(tags + ["balanced", "anti-inflammatory", "nutrient-dense"]))
+    if any(k in t for k in ("athlete", "training", "workout", "performance", "endurance", "sport")):
+        calories = max(calories, 2500)
+        protein = max(protein, 30)
+        carbs = 45
+        tags = list(set(tags + ["high-protein", "complex-carbs", "lean"]))
 
     return {
         "calories": calories,
@@ -243,6 +264,7 @@ def _infer_custom_nutrition(text: str) -> Dict[str, Any]:
             "fiber_grams": fiber,
         },
         "health_tags": tags,
+        "demo_safe": True,
     }
 
 
@@ -301,7 +323,11 @@ def resolve_goal_request(
     return {
         "goal_type": f"custom_{slug}",
         "label": raw[:80],
-        "description": f"Custom nutrition goal: {raw}",
+        "description": (
+            f"Custom goal: {raw}. "
+            f"NutriAI mapped this to ~{nutrition['calories']} kcal/day with "
+            f"{nutrition['macros']['protein_percent']}% protein focus for a full personalized week."
+        ),
         "target_value": None,
         "current_value": None,
         "unit": "",
