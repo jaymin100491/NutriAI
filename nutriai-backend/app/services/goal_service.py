@@ -175,7 +175,14 @@ _GOAL_ALIASES = [
     (("muscle", "bulk", "strength", "hypertrophy", "gain muscle", "toned", "gym"), "muscle_gain"),
     (("more protein", "high protein", "protein intake", "extra protein"), "more_protein"),
     (("vitamin d", "vit d"), "increase_vitamin_d"),
-    (("inflammation", "anti-inflammatory", "arthritis", "joint pain", "skin", "acne"), "reduce_inflammation"),
+    (
+        (
+            "inflammation", "anti-inflammatory", "arthritis", "joint pain",
+            "skin", "acne", "glow", "complexion", "dermat",
+            "hair", "nail", "nails", "brittle", "keratin",
+        ),
+        "reduce_inflammation",
+    ),
     (("gut", "digestion", "bloating", "microbiome", "constipation", "ibs"), "gut_health"),
     (("energy", "fatigue", "tired", "iron", "b12", "focus", "brain"), "increase_energy"),
     (("sleep", "insomnia", "rest", "sleep better"), "better_sleep"),
@@ -234,8 +241,13 @@ def _infer_custom_nutrition(text: str) -> Dict[str, Any]:
     if any(k in t for k in ("plant", "vegan", "fiber", "gut", "digest", "bloating")):
         fiber = 40
         tags = list(set(tags + ["plant-based", "high-fiber", "probiotic"]))
-    if any(k in t for k in ("anti-inflam", "joint", "inflam", "skin", "acne")):
-        tags = list(set(tags + ["anti-inflammatory", "omega-3", "antioxidant-rich"]))
+    if any(k in t for k in ("anti-inflam", "joint", "inflam", "skin", "acne", "glow", "complexion", "hair", "nail", "keratin", "brittle")):
+        protein = max(protein, 30)
+        tags = list(set(tags + ["anti-inflammatory", "omega-3", "antioxidant-rich", "nutrient-dense", "high-protein"]))
+        # Beauty goals benefit from protein + anti-inflammatory pattern
+        if any(k in t for k in ("skin", "acne", "glow", "hair", "nail")):
+            calories = 1850
+            fiber = max(fiber, 32)
     if any(k in t for k in ("low sodium", "salt", "pressure", "hypertension", "heart")):
         fat = 25
         tags = list(set(tags + ["low-sodium-option", "heart-healthy", "potassium-rich"]))
