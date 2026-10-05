@@ -28,25 +28,21 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:8000",
         "http://localhost:4200",
-        "https://patient-local.labcorp.com:4200",
-        "http://patient-local.labcorp.com:4200",
     ]
 
     # AI APIs
     ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
 
-    # Labcorp Patient Portal QA (same as patient-website-ui environment.qa.json)
-    LABCORP_PORTAL_API_URL: str = "https://portal-api.patient-qa.dev.cws.labcorp.com"
-    LABCORP_USE_MOCK: bool = False
-
-    # Okta QA — redirect must be https://patient-local.labcorp.com:4200/callback
-    OKTA_ISSUER: str = "https://login-patientqa.labcorp.com/oauth2/default"
-    OKTA_CLIENT_ID: str = "0oa1ec6lfv1VzTPcy0h8"
-    OKTA_REDIRECT_URI: str = "https://patient-local.labcorp.com:4200/callback"
+    # Legacy Labcorp/Okta fields kept optional for old code paths — unused in open-market demo
+    LABCORP_PORTAL_API_URL: str = ""
+    LABCORP_USE_MOCK: bool = True
+    OKTA_ISSUER: str = ""
+    OKTA_CLIENT_ID: str = ""
+    OKTA_REDIRECT_URI: str = ""
     OKTA_SCOPES: str = "openid profile email"
 
-    # MyChart — deferred
+    # Health records — paste import today; auto-sync later
     MYCHART_USE_MOCK: bool = True
     DEFAULT_HEALTH_SYSTEM: str = "health_records"
 
