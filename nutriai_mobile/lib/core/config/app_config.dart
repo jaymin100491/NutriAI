@@ -5,22 +5,20 @@ class AppConfig {
     defaultValue: 'http://127.0.0.1:8000',
   );
 
-  /// Labcorp patient portal QA — browser calls this directly (withCredentials).
+  /// Legacy optional portal URL — unused for open-market paste demo.
   static const String labcorpPortalApiUrl = String.fromEnvironment(
     'LABCORP_PORTAL_API_URL',
-    defaultValue: 'https://portal-api.patient-qa.dev.cws.labcorp.com',
+    defaultValue: '',
   );
 
   static const bool demoMode = bool.fromEnvironment('DEMO_MODE', defaultValue: false);
 
-  /// Must match patient-website-ui QA Okta redirect (port 4200).
   static const String webHost = String.fromEnvironment(
     'WEB_HOST',
-    defaultValue: 'patient-local.labcorp.com',
+    defaultValue: 'localhost',
   );
 
-  static const int webPort = int.fromEnvironment('WEB_PORT', defaultValue: 4200);
+  static const int webPort = int.fromEnvironment('WEB_PORT', defaultValue: 8080);
 
-  static String get callbackUrl =>
-      'https://$webHost:$webPort/callback';
+  static String get callbackUrl => 'http://$webHost:$webPort/callback';
 }
