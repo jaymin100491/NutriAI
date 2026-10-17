@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -11,25 +11,23 @@ from app.core.config import settings
 from app.db.database import get_db
 from app.db import repository as repo
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 
-def _password_bytes(password: str) -> str:
-    """bcrypt only uses first 72 bytes — truncate safely for passlib/bcrypt compatibility."""
-    raw = password.encode("utf-8")[:72]
-    return raw.decode("utf-8", errors="ignore")
+def _password_bytes(password: str) -> bytes:
+    """bcrypt only uses first 72 bytes."""
+    return password.encode("utf-8")[:72]
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
-        return pwd_context.verify(_password_bytes(plain_password), hashed_password)
+        return bcrypt.checkpw(_password_bytes(plain_password), hashed_password.encode("utf-8"))
     except Exception:
         return False
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(_password_bytes(password))
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -64,12 +62,15 @@ def get_current_user(
 
     user = repo.get_user_by_id(db, int(user_id))
     if user:
+        if getattr(user, "is_active", True) is False:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
         return {
             "id": user.id,
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "subscription_tier": user.subscription_tier,
+            "role": getattr(user, "role", None) or "user",
             "dietary_preference": "omnivore",
             "allergies": [],
             "medical_conditions": [],

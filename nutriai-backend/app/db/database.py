@@ -41,3 +41,9 @@ def init_db():
             if "password_hash" not in cols:
                 with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)"))
+            if "role" not in cols:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(30) DEFAULT 'user'"))
+            if "is_active" not in cols:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1"))

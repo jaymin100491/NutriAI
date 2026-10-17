@@ -19,10 +19,18 @@ class ApiConstants {
   static const String labResultsSync = '$apiV1/lab-results/sync';
   static const String labResultsImportFromPortal = '$apiV1/lab-results/import-from-portal';
   static const String labResultsPaste = '$apiV1/lab-results/paste';
+  static const String labResultsUploadPdf = '$apiV1/lab-results/upload-pdf';
   static const String latestLabResult = '$apiV1/lab-results/latest';
 
   static const String currentDietPlan = '$apiV1/diet-plans/current';
   static const String generateDietPlan = '$apiV1/diet-plans/generate';
+  static const String dietPlanSchedule = '$apiV1/diet-plans/schedule';
+  static const String dietPlanWeeklyGenerate = '$apiV1/diet-plans/weekly/generate';
+  static const String dietPlanWeeklyNext = '$apiV1/diet-plans/weekly/next';
+  static const String dietPlanHistory = '$apiV1/diet-plans/history';
+
+  static const String adminUsers = '$apiV1/admin/users';
+  static const String adminStats = '$apiV1/admin/stats';
 
   static const String recipes = '$apiV1/recipes';
 

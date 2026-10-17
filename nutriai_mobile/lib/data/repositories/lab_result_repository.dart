@@ -1,8 +1,9 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/dio_client.dart';
 import '../models/lab_result_model.dart';
 import 'labcorp_portal_repository.dart';
-import 'package:flutter/foundation.dart';
 
 class LabResultRepository {
   final DioClient _dioClient;
@@ -53,7 +54,7 @@ class LabResultRepository {
     return results.map((json) => LabResult.fromJson(json as Map<String, dynamic>)).toList();
   }
 
-  Future<List<LabResult>> pasteLabText({
+  Future<Map<String, dynamic>> pasteLabText({
     required String text,
     String? testDate,
     String? panelTitle,
@@ -67,8 +68,22 @@ class LabResultRepository {
         'source_label': 'pasted_panel',
       },
     );
-    final data = response.data as Map<String, dynamic>;
-    final results = data['lab_results'] as List<dynamic>;
-    return results.map((json) => LabResult.fromJson(json as Map<String, dynamic>)).toList();
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> uploadLabPdf({
+    required List<int> bytes,
+    required String filename,
+    String? testDate,
+  }) async {
+    final form = FormData.fromMap({
+      'file': MultipartFile.fromBytes(bytes, filename: filename),
+      if (testDate != null && testDate.isNotEmpty) 'test_date': testDate,
+    });
+    final response = await _dioClient.dio.post(
+      ApiConstants.labResultsUploadPdf,
+      data: form,
+    );
+    return Map<String, dynamic>.from(response.data as Map);
   }
 }

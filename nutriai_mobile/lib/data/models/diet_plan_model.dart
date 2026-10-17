@@ -30,20 +30,28 @@ class DietPlan extends Equatable {
   });
 
   factory DietPlan.fromJson(Map<String, dynamic> json) {
+    final shopping = json['shopping_list'];
     return DietPlan(
-      id: json['id'] as int,
-      userId: json['user_id'] as int,
-      title: json['title'] as String,
-      startDate: json['start_date'] as String,
-      endDate: json['end_date'] as String,
-      durationDays: json['duration_days'] as int,
-      goals: (json['goals'] as List<dynamic>).map((e) => e.toString()).toList(),
-      targetCalories: json['target_calories'] as int,
-      macroTargets: MacroTargets.fromJson(json['macro_targets'] as Map<String, dynamic>),
-      meals: (json['meals'] as List<dynamic>)
-          .map((e) => MealPlan.fromJson(e as Map<String, dynamic>))
+      id: (json['id'] as num).toInt(),
+      userId: (json['user_id'] as num).toInt(),
+      title: (json['title'] as String?) ?? 'Weekly plan',
+      startDate: (json['start_date'] as String?) ?? (json['week_start'] as String?) ?? '',
+      endDate: (json['end_date'] as String?) ?? (json['week_end'] as String?) ?? '',
+      durationDays: (json['duration_days'] as num?)?.toInt() ?? 7,
+      goals: (json['goals'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+      targetCalories: (json['target_calories'] as num?)?.toInt() ?? 1800,
+      macroTargets: MacroTargets.fromJson(
+        Map<String, dynamic>.from(
+          (json['macro_targets'] as Map?) ??
+              {'protein_percent': 25, 'carb_percent': 45, 'fat_percent': 30, 'fiber_grams': 30},
+        ),
+      ),
+      meals: (json['meals'] as List<dynamic>? ?? [])
+          .map((e) => MealPlan.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
-      shoppingList: ShoppingList.fromJson(json['shopping_list'] as Map<String, dynamic>),
+      shoppingList: shopping is Map
+          ? ShoppingList.fromJson(Map<String, dynamic>.from(shopping))
+          : const ShoppingList(categories: {}),
       aiRationale: json['ai_rationale'] as String?,
     );
   }

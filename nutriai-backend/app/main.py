@@ -63,16 +63,34 @@ async def startup():
     from app.services.recipe_catalog import reset_recipe_catalog
 
     reset_recipe_catalog()
-    if settings.DEMO_MODE:
-        from app.db.database import SessionLocal
-        from app.db.seed_demo import seed_demo_workspace
+    from app.db.database import SessionLocal
+    from app.db import repository as repo
+    from app.core.security import get_password_hash
 
-        db = SessionLocal()
-        try:
+    db = SessionLocal()
+    try:
+        if settings.DEMO_MODE:
+            from app.db.seed_demo import seed_demo_workspace
+
             seed_demo_workspace(db)
             logger.info("Demo workspace seeded (jaymin@nutriai.app)")
-        finally:
-            db.close()
+
+        # Ensure production admin account exists
+        admin = repo.get_user_by_email(db, "admin@nutriai.app")
+        if not admin:
+            admin = repo.create_password_user(
+                db,
+                email="admin@nutriai.app",
+                password_hash=get_password_hash("admin123"),
+                first_name="NutriAI",
+                last_name="Admin",
+            )
+        admin.role = "admin"
+        admin.is_active = True
+        db.commit()
+        logger.info("Admin ready (admin@nutriai.app)")
+    finally:
+        db.close()
 
     logger.info(
         "NutriAI started — env=%s mock_labs=%s demo_mode=%s",

@@ -1,7 +1,18 @@
-import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/dio_client.dart';
 import '../models/diet_plan_model.dart';
+
+class DietPlanHistoryResponse {
+  final List<Map<String, dynamic>> plans;
+  final int total;
+  final String? improvementHint;
+
+  DietPlanHistoryResponse({
+    required this.plans,
+    required this.total,
+    this.improvementHint,
+  });
+}
 
 class DietPlanRepository {
   final DioClient _dioClient;
@@ -10,26 +21,39 @@ class DietPlanRepository {
 
   Future<DietPlan> getCurrentDietPlan() async {
     try {
-      final response = await _dioClient.dio.get(
-        '${ApiConstants.apiV1}/diet-plans/current',
-      );
-      return DietPlan.fromJson(response.data);
+      final response = await _dioClient.dio.get(ApiConstants.currentDietPlan);
+      return DietPlan.fromJson(Map<String, dynamic>.from(response.data as Map));
     } catch (e) {
       throw Exception('Failed to fetch current diet plan: $e');
     }
   }
 
-  Future<List<DietPlan>> getDietPlanHistory() async {
+  Future<DietPlanHistoryResponse> getDietPlanHistory() async {
     try {
-      final response = await _dioClient.dio.get(
-        '${ApiConstants.apiV1}/diet-plans/history',
-      );
-      return (response.data as List)
-          .map((json) => DietPlan.fromJson(json))
+      final response = await _dioClient.dio.get(ApiConstants.dietPlanHistory);
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final plans = (data['plans'] as List<dynamic>? ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
+      return DietPlanHistoryResponse(
+        plans: plans,
+        total: data['total'] as int? ?? plans.length,
+        improvementHint: data['improvement_hint'] as String?,
+      );
     } catch (e) {
       throw Exception('Failed to fetch diet plan history: $e');
     }
+  }
+
+  Future<Map<String, dynamic>> getSchedule() async {
+    final response = await _dioClient.dio.get(ApiConstants.dietPlanSchedule);
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<DietPlan> generateWeeklyPlan({bool nextWeek = false}) async {
+    final path = nextWeek ? ApiConstants.dietPlanWeeklyNext : ApiConstants.dietPlanWeeklyGenerate;
+    final response = await _dioClient.dio.post(path);
+    return DietPlan.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
 
   Future<DietPlan> generateDietPlan({
@@ -39,16 +63,8 @@ class DietPlanRepository {
     required Map<String, int> macroTargets,
   }) async {
     try {
-      final response = await _dioClient.dio.post(
-        '${ApiConstants.apiV1}/diet-plans/generate',
-        data: {
-          'duration_days': durationDays,
-          'goals': goals,
-          'target_calories': targetCalories,
-          'macro_targets': macroTargets,
-        },
-      );
-      return DietPlan.fromJson(response.data);
+      // Prefer fixed Mon–Sun weekly generation for production cadence
+      return await generateWeeklyPlan(nextWeek: false);
     } catch (e) {
       throw Exception('Failed to generate diet plan: $e');
     }

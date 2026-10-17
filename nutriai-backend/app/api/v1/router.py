@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     recipes,
     goals,
     chat,
+    admin,
 )
 
 api_router = APIRouter()
@@ -20,3 +21,4 @@ api_router.include_router(tracking.router, prefix="/tracking", tags=["Tracking"]
 api_router.include_router(recipes.router, prefix="/recipes", tags=["Recipes"])
 api_router.include_router(goals.router, prefix="/goals", tags=["Health Goals"])
 api_router.include_router(chat.router, prefix="/chat", tags=["AI Dietitian Chat"])
+api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])

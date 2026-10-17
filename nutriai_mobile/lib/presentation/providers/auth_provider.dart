@@ -65,6 +65,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             firstName: nameParts.isNotEmpty ? nameParts.first : 'Patient',
             lastName: nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '',
             subscriptionTier: 'premium',
+            role: userData['role'] ?? 'user',
           ),
         );
       }

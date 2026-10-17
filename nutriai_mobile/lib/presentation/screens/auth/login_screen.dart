@@ -221,8 +221,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     border: Border.all(color: Colors.blue.shade100),
                   ),
                   child: const Text(
-                    'After signup you can paste markers from your portal. '
-                    'Roadmap: automatic fetch from MyChart, Labcorp, and other systems.',
+                    'After signup: upload your lab PDF or paste markers from MyChart / Labcorp / your portal. '
+                    'We store your results and build your Mon–Sun plan in about a minute. '
+                    'Track biometrics daily — next week’s plan releases every Friday.',
                     style: TextStyle(fontSize: 13, height: 1.4),
                   ),
                 ),

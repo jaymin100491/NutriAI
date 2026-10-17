@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.schemas.lab_result import (
@@ -11,6 +13,7 @@ from app.schemas.lab_result import (
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.db import repository as repo
+from app.db.store import set_user_goals
 from app.services.lab_result_service import (
     get_lab_results_for_user,
     get_lab_result_by_id,
@@ -20,6 +23,9 @@ from app.services.lab_result_service import (
     get_nutrition_relevant_history,
 )
 from app.services.lab_paste_parser import build_pasted_lab_result
+from app.services.pdf_lab_extractor import extract_text_from_pdf
+from app.services.goal_service import derive_goals_from_labs
+from app.services.weekly_plan_service import generate_weekly_plan
 from app.integrations.registry import list_health_systems
 
 router = APIRouter()
@@ -101,16 +107,63 @@ async def import_lab_results_from_portal(
     }
 
 
-@router.post("/paste", response_model=LabSyncResponse)
+def _ingest_lab_text_and_plan(
+    *,
+    db: Session,
+    current_user: dict,
+    user,
+    text: str,
+    test_date: Optional[str] = None,
+    panel_title: Optional[str] = None,
+    source_label: str = "pasted_panel",
+) -> dict:
+    """Store parsed labs, derive goals, generate Mon–Sun weekly plan (~1 minute flow)."""
+    user_id = int(user.id)
+    patient_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "Patient"
+    panel = build_pasted_lab_result(
+        user_id=user_id,
+        text=text,
+        test_date=test_date,
+        panel_title=panel_title,
+        source_label=source_label,
+        patient_name=patient_name,
+    )
+    repo.upsert_lab_results(db, user_id, [panel])
+    results = get_lab_results_for_user(db, user_id)
+
+    goals = derive_goals_from_labs(results, current_user)
+    set_user_goals(user_id, goals)
+
+    lab_summary = (panel.get("interpretation") or {}).get("summary")
+    user_payload = {
+        **current_user,
+        "id": user_id,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "subscription_tier": user.subscription_tier,
+    }
+    plan = generate_weekly_plan(user_payload, for_next_week=False, lab_summary=lab_summary)
+    marker_count = len(panel.get("results", {}).get("tests", []))
+    return {
+        "synced_count": 1,
+        "lab_results": results,
+        "goals": goals,
+        "plan": plan,
+        "message": (
+            f"Saved {marker_count} markers, derived {len(goals)} goals, "
+            f"and built your Mon–Sun plan ({plan.get('week_start')} → {plan.get('week_end')})."
+        ),
+    }
+
+
+@router.post("/paste")
 async def paste_lab_results(
     payload: PasteLabRequest,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    Demo-friendly import: user pastes lab panel text from MyChart / Labcorp / any portal.
-    Stored in NutriAI DB. Future: automatic EHR sync replaces this step.
-    """
+    """Paste lab markers → store → derive goals → generate this week's Mon–Sun plan."""
     user_id = int(current_user["id"])
     user = repo.get_user_by_id(db, user_id)
     if not user:
@@ -124,30 +177,55 @@ async def paste_lab_results(
         )
 
     try:
-        patient_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "Patient"
-        panel = build_pasted_lab_result(
-            user_id=user_id,
+        return _ingest_lab_text_and_plan(
+            db=db,
+            current_user=current_user,
+            user=user,
             text=text,
             test_date=payload.test_date,
             panel_title=payload.panel_title,
             source_label=payload.source_label or "pasted_panel",
-            patient_name=patient_name,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    repo.upsert_lab_results(db, user_id, [panel])
-    results = get_lab_results_for_user(db, user_id)
-    marker_count = len(panel.get("results", {}).get("tests", []))
 
-    return {
-        "synced_count": 1,
-        "lab_results": results,
-        "message": (
-            f"Saved {marker_count} markers from pasted panel. "
-            "Later this will sync automatically from connected health systems."
-        ),
-    }
+@router.post("/upload-pdf")
+async def upload_lab_pdf(
+    file: UploadFile = File(...),
+    test_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Upload a lab PDF → extract text → store → goals → Mon–Sun plan."""
+    user_id = int(current_user["id"])
+    user = repo.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Please upload a PDF file")
+
+    raw = await file.read()
+    if len(raw) > 12_000_000:
+        raise HTTPException(status_code=400, detail="PDF too large (max 12MB)")
+
+    try:
+        text, pages = extract_text_from_pdf(raw)
+        result = _ingest_lab_text_and_plan(
+            db=db,
+            current_user=current_user,
+            user=user,
+            text=text,
+            test_date=test_date,
+            panel_title=f"Uploaded PDF ({file.filename})",
+            source_label="pdf_upload",
+        )
+        result["pdf_pages"] = pages
+        result["message"] = f"Processed {pages}-page PDF. " + result["message"]
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.get("/latest", response_model=LabResultResponse)

@@ -23,6 +23,9 @@ openai==1.10.0
 # Utilities
 python-dateutil==2.8.2
 pytz==2023.3
+pypdf==4.2.0
+
+# PDF lab report text extraction
 
 # HTTP Client
 httpx==0.26.0

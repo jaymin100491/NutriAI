@@ -74,6 +74,7 @@ class UserData extends Equatable {
   final String firstName;
   final String lastName;
   final String subscriptionTier;
+  final String role;
 
   const UserData({
     required this.id,
@@ -81,6 +82,7 @@ class UserData extends Equatable {
     required this.firstName,
     required this.lastName,
     required this.subscriptionTier,
+    this.role = 'user',
   });
 
   factory UserData.fromJson(Map<String, dynamic> json) {
@@ -90,13 +92,15 @@ class UserData extends Equatable {
       firstName: (json['first_name'] as String?) ?? 'Patient',
       lastName: (json['last_name'] as String?) ?? '',
       subscriptionTier: (json['subscription_tier'] as String?) ?? 'premium',
+      role: (json['role'] as String?) ?? 'user',
     );
   }
 
   String get fullName => '$firstName $lastName';
+  bool get isAdmin => role == 'admin';
 
   @override
-  List<Object?> get props => [id, email, firstName, lastName, subscriptionTier];
+  List<Object?> get props => [id, email, firstName, lastName, subscriptionTier, role];
 }
 
 class TokenData extends Equatable {

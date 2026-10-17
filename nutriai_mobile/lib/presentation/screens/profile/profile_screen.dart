@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../admin/admin_users_screen.dart';
+import '../diet_plan/diet_plan_history_screen.dart';
 import '../goals/goals_screen.dart';
 import '../lab_results/lab_results_list_screen.dart';
+import '../labs/paste_labs_screen.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../auth/login_screen.dart';
@@ -29,6 +32,18 @@ class ProfileScreen extends ConsumerWidget {
               _buildListTile(context, Icons.science, 'Lab Results', () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const LabResultsListScreen()));
               }),
+              _buildListTile(context, Icons.upload_file, 'Upload / paste labs', () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PasteLabsScreen(allowSkip: false)),
+                );
+              }),
+              _buildListTile(context, Icons.history, 'Past diet plans', () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DietPlanHistoryScreen()),
+                );
+              }),
               _buildListTile(context, Icons.favorite, 'Health Goals', () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalsScreen()));
               }),
@@ -45,6 +60,15 @@ class ProfileScreen extends ConsumerWidget {
                 );
               }),
             ]),
+            if (user?.isAdmin == true)
+              _buildSection('Administration', [
+                _buildListTile(context, Icons.admin_panel_settings, 'Manage all users', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminUsersScreen()),
+                  );
+                }),
+              ]),
             _buildSection('Settings', [
               _buildListTile(context, Icons.notifications, 'Notifications', () {}),
               _buildListTile(context, Icons.language, 'Language', () {}),

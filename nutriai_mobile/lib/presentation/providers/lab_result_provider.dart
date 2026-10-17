@@ -25,6 +25,7 @@ class LabResultsNotifier extends AsyncNotifier<List<LabResult>> {
     });
   }
 
+  /// Returns null on success (with optional success message), or error string.
   Future<String?> pasteLabs({
     required String text,
     String? testDate,
@@ -33,16 +34,43 @@ class LabResultsNotifier extends AsyncNotifier<List<LabResult>> {
     state = const AsyncValue.loading();
     try {
       final repository = ref.read(labResultRepositoryProvider);
-      final results = await repository.pasteLabText(
+      final data = await repository.pasteLabText(
         text: text,
         testDate: testDate,
         panelTitle: panelTitle,
       );
+      final results = (data['lab_results'] as List<dynamic>? ?? [])
+          .map((json) => LabResult.fromJson(json as Map<String, dynamic>))
+          .toList();
       state = AsyncValue.data(results);
-      return null;
+      return data['message'] as String?;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
-      return e.toString();
+      return 'ERROR:$e';
+    }
+  }
+
+  Future<String?> uploadPdf({
+    required List<int> bytes,
+    required String filename,
+    String? testDate,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final repository = ref.read(labResultRepositoryProvider);
+      final data = await repository.uploadLabPdf(
+        bytes: bytes,
+        filename: filename,
+        testDate: testDate,
+      );
+      final results = (data['lab_results'] as List<dynamic>? ?? [])
+          .map((json) => LabResult.fromJson(json as Map<String, dynamic>))
+          .toList();
+      state = AsyncValue.data(results);
+      return data['message'] as String?;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return 'ERROR:$e';
     }
   }
 }

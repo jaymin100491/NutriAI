@@ -38,6 +38,13 @@ class DietPlanResponse(BaseModel):
     goal_details: Optional[List[Dict[str, Any]]] = None
     customization_count: Optional[int] = 0
     last_customization: Optional[str] = None
+    week_start: Optional[str] = None
+    week_end: Optional[str] = None
+    plan_type: Optional[str] = None
+    biometric_notes: Optional[List[str]] = None
+    professional: Optional[bool] = None
+    released_on: Optional[str] = None
 
     class Config:
         from_attributes = True
+

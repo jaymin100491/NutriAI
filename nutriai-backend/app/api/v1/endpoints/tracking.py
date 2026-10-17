@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import List, Optional
 
 from app.schemas.tracking import TrackingCreate, TrackingResponse, ProgressResponse
 from app.core.security import get_current_user
@@ -54,7 +54,7 @@ async def add_daily_tracking(
     return saved
 
 
-@router.get("/daily", response_model=list[TrackingResponse])
+@router.get("/daily", response_model=List[TrackingResponse])
 async def get_daily_tracking(
     days: int = 1500,
     current_user: dict = Depends(get_current_user),

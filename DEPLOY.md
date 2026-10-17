@@ -1,39 +1,45 @@
-# NutriAI live demo deploy (Firebase Hosting + hosted API)
+# NutriAI production / live demo deploy
 
-Yes — deploying looks much better for a manager / org-lead demo: one HTTPS link
-works on phones and laptops. Nobody creates a database on their device.
+Shareable HTTPS app (Firebase Hosting) + hosted API. Audience opens one link on phone or laptop — no local database setup.
 
 ## Architecture
 
 | Piece | Where | Notes |
 |-------|--------|------|
-| Flutter web UI | **Firebase Hosting** (your account) | Shareable `*.web.app` URL |
-| FastAPI + SQLite DB | Cloud Run / Render / Railway | Creates DB + seeds on startup |
+| Flutter web UI | **Firebase Hosting** | Shareable `*.web.app` URL |
+| FastAPI + DB | Cloud Run / Render / Railway | SQLite OK for early demo; Postgres for production |
 | Secrets | Host env vars | Never commit `.env` |
-
-Firebase Hosting serves the app. The API (and SQLite) live on a small backend host.
-Same Google account can use **Cloud Run** for the API if you prefer staying in GCP.
 
 ## Audience flow
 
-1. Open the Firebase URL on phone or laptop  
-2. **Sign up** (or try seeded demo `jaymin@nutriai.app` / `demo`)  
-3. **Paste** a few lab markers from MyChart / Labcorp / employer portal  
-4. NutriAI stores them in the shared database and unlocks coaching  
-5. Pitch: *“Today copy-paste; next we integrate systems to fetch automatically.”*
+1. Open the Firebase URL  
+2. **Sign up** (or seeded demo `jaymin@nutriai.app` / `demo`)  
+3. **Upload lab PDF** or **paste** markers from MyChart / Labcorp / employer portal  
+4. NutriAI stores labs, builds Mon–Sun plan (~1 minute)  
+5. Track biometrics daily; **Friday** prepares next week’s plan  
+6. Admin: `admin@nutriai.app` (change password after first deploy)
 
-## 1) Deploy API (required once)
+## 1) Deploy API
 
-Example with Render/Railway/Cloud Run:
+Example with Render / Railway / Cloud Run:
 
 - Root / Docker: `nutriai-backend/`
-- Env:
-  - `DEMO_MODE=true`
-  - `DATABASE_URL=sqlite:///./nutriai.db` (fine for demo)
-  - `SECRET_KEY=<random>`
-  - `DEBUG=false`
-  - Optional: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
-- On first boot, tables are created and the Jaymin demo workspace is seeded.
+- Env (minimum):
+
+```bash
+DEMO_MODE=true          # set false once you no longer want seeded demo user
+DEBUG=false
+ENVIRONMENT=production
+SECRET_KEY=<openssl rand -hex 32>
+DATABASE_URL=sqlite:///./nutriai.db   # or postgres://... for production
+ALLOWED_ORIGINS=https://YOUR-PROJECT.web.app,https://YOUR-PROJECT.firebaseapp.com
+OPENAI_API_KEY=         # optional
+ANTHROPIC_API_KEY=      # optional
+```
+
+On first boot: tables created, admin user ensured (`admin@nutriai.app`), optional demo seed if `DEMO_MODE=true`.
+
+**Immediately after first deploy:** log in as admin and change the password (default `admin123` is for bootstrap only).
 
 Copy the public API URL, e.g. `https://nutriai-api.example.com`
 
@@ -42,9 +48,7 @@ Copy the public API URL, e.g. `https://nutriai-api.example.com`
 ```bash
 cd nutriai_mobile
 firebase login
-# create or select a project in console.firebase.google.com
 firebase use YOUR_FIREBASE_PROJECT_ID
-# edit .firebaserc → set "default" to that project id
 
 export NUTRIAI_API_BASE_URL=https://YOUR-API-HOST
 chmod +x scripts/deploy-firebase.sh
@@ -55,8 +59,17 @@ Share the Hosting URL from the Firebase console.
 
 ## 3) CORS
 
-Backend already allows all origins when `DEBUG=true`. For production, set
-`ALLOWED_ORIGINS` to your Firebase URL in backend config/env.
+With `DEBUG=false`, set `ALLOWED_ORIGINS` to your Firebase URL(s) only.
+
+## 4) Production hardening checklist
+
+- [ ] Strong `SECRET_KEY`  
+- [ ] `DEBUG=false`, `ENVIRONMENT=production`  
+- [ ] Change admin password (or disable default admin)  
+- [ ] Postgres instead of SQLite for multi-instance / durability  
+- [ ] HTTPS only; Firebase URL in CORS  
+- [ ] Optional: rotate demo credentials or set `DEMO_MODE=false`  
+- [ ] Optional AI keys for free-text goal interpretation  
 
 ## Local dry-run (before Firebase)
 
@@ -71,4 +84,4 @@ flutter run -d chrome --web-port 8080 \
   --dart-define=DEMO_MODE=true
 ```
 
-Sign up → paste sample panel → confirm labs appear.
+Sign up → upload PDF or paste sample panel → confirm plan + history + tracking.

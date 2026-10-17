@@ -20,6 +20,8 @@ class User(Base):
     okta_sub: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True)
     labcorp_patient_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
     subscription_tier: Mapped[str] = mapped_column(String(50), default="premium")
+    role: Mapped[str] = mapped_column(String(30), default="user")  # user | admin
+    is_active: Mapped[bool] = mapped_column(default=True)
     okta_access_token_enc: Mapped[Optional[str]] = mapped_column(Text)
     portal_session_cookies_enc: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

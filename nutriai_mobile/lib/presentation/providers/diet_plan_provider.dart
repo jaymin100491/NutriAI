@@ -17,12 +17,21 @@ final currentDietPlanProvider = FutureProvider<DietPlan?>((ref) async {
   }
 });
 
-final dietPlanHistoryProvider = FutureProvider<List<DietPlan>>((ref) async {
+final dietPlanHistoryProvider = FutureProvider<DietPlanHistoryResponse?>((ref) async {
   final repository = ref.watch(dietPlanRepositoryProvider);
   try {
     return await repository.getDietPlanHistory();
   } catch (e) {
-    return [];
+    return null;
+  }
+});
+
+final dietPlanScheduleProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+  final repository = ref.watch(dietPlanRepositoryProvider);
+  try {
+    return await repository.getSchedule();
+  } catch (e) {
+    return null;
   }
 });
 
@@ -46,14 +55,16 @@ final recipeDetailProvider = FutureProvider.family<Recipe?, int>((ref, recipeId)
 
 class DietPlanState {
   final DietPlan? currentPlan;
-  final List<DietPlan> history;
+  final DietPlanHistoryResponse? history;
+  final Map<String, dynamic>? schedule;
   final bool isLoading;
   final String? error;
   final int selectedDay;
 
   DietPlanState({
     this.currentPlan,
-    this.history = const [],
+    this.history,
+    this.schedule,
     this.isLoading = false,
     this.error,
     this.selectedDay = 1,
@@ -61,7 +72,8 @@ class DietPlanState {
 
   DietPlanState copyWith({
     DietPlan? currentPlan,
-    List<DietPlan>? history,
+    DietPlanHistoryResponse? history,
+    Map<String, dynamic>? schedule,
     bool? isLoading,
     String? error,
     int? selectedDay,
@@ -69,6 +81,7 @@ class DietPlanState {
     return DietPlanState(
       currentPlan: currentPlan ?? this.currentPlan,
       history: history ?? this.history,
+      schedule: schedule ?? this.schedule,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
       selectedDay: selectedDay ?? this.selectedDay,
@@ -103,27 +116,34 @@ class DietPlanNotifier extends StateNotifier<DietPlanState> {
     }
   }
 
+  Future<void> loadSchedule() async {
+    try {
+      final schedule = await _repository.getSchedule();
+      state = state.copyWith(schedule: schedule);
+    } catch (_) {}
+  }
+
+  Future<void> generateWeekly({bool nextWeek = false}) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final plan = await _repository.generateWeeklyPlan(nextWeek: nextWeek);
+      final schedule = await _repository.getSchedule();
+      state = state.copyWith(currentPlan: plan, schedule: schedule, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(
+        error: 'Failed to generate weekly plan',
+        isLoading: false,
+      );
+    }
+  }
+
   Future<void> generateNewPlan({
     required int durationDays,
     required List<String> goals,
     required int targetCalories,
     required Map<String, int> macroTargets,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final plan = await _repository.generateDietPlan(
-        durationDays: durationDays,
-        goals: goals,
-        targetCalories: targetCalories,
-        macroTargets: macroTargets,
-      );
-      state = state.copyWith(currentPlan: plan, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        error: 'Failed to generate diet plan',
-        isLoading: false,
-      );
-    }
+    await generateWeekly(nextWeek: false);
   }
 
   void selectDay(int day) {

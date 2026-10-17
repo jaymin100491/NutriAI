@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/diet_plan_provider.dart';
 import 'daily_meals_screen.dart';
+import 'diet_plan_history_screen.dart';
 import '../chat/ai_chat_screen.dart';
 
 class DietPlanListScreen extends ConsumerStatefulWidget {
@@ -18,7 +19,9 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(dietPlanNotifierProvider.notifier).loadCurrentDietPlan();
+      final n = ref.read(dietPlanNotifierProvider.notifier);
+      n.loadCurrentDietPlan();
+      n.loadSchedule();
     });
   }
 
@@ -32,9 +35,21 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
         title: const Text('My Diet Plan'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Past plans',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DietPlanHistoryScreen()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              ref.read(dietPlanNotifierProvider.notifier).loadCurrentDietPlan();
+              final n = ref.read(dietPlanNotifierProvider.notifier);
+              n.loadCurrentDietPlan();
+              n.loadSchedule();
             },
           ),
         ],
@@ -66,6 +81,7 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          _buildScheduleBanner(dietPlanState.schedule),
                           _buildPlanHeader(currentPlan),
                           _buildAiRationaleCard(currentPlan),
                           _buildMacroTargets(currentPlan),
@@ -94,6 +110,55 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
             icon: const Icon(Icons.add),
             label: const Text('New Plan'),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleBanner(Map<String, dynamic>? schedule) {
+    if (schedule == null) return const SizedBox.shrink();
+    final isFriday = schedule['is_friday'] == true;
+    final note = schedule['message']?.toString() ??
+        'Mon–Sun fixed week. Next week’s plan is prepared every Friday from your biometrics.';
+    final current = schedule['current_week'] as Map?;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isFriday ? Colors.amber.shade50 : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isFriday ? Colors.amber.shade200 : Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isFriday ? 'Friday release day' : 'Weekly cadence',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(note, style: const TextStyle(fontSize: 12, height: 1.35)),
+          if (current != null)
+            Text(
+              'This week: ${current['start']} → ${current['end']}',
+              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+            ),
+          if (isFriday)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () async {
+                  await ref.read(dietPlanNotifierProvider.notifier).generateWeekly(nextWeek: true);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Next week’s Mon–Sun plan is ready')),
+                    );
+                  }
+                },
+                child: const Text('Generate next week plan'),
+              ),
+            ),
         ],
       ),
     );
@@ -433,25 +498,23 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Generate New AI Plan'),
+        title: const Text('Refresh this week’s plan'),
         content: const Text(
-          'Create a fresh 7-day meal plan based on your lab results, health goals, and dietary preferences. '
-          'Our AI selects from 1,500+ recipes matched to your profile.',
+          'Rebuild your Mon–Sunday professional meal plan from labs, goals, and recent biometrics. '
+          'Past plans stay in history so you can track improvement.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await ref.read(dietPlanNotifierProvider.notifier).generateNewPlan(
-                    durationDays: 7,
-                    goals: [],
-                    targetCalories: 1800,
-                    macroTargets: {'protein_percent': 25, 'carb_percent': 45, 'fat_percent': 30},
-                  );
+              await ref.read(dietPlanNotifierProvider.notifier).generateWeekly(nextWeek: false);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('New AI-powered meal plan generated!'), backgroundColor: AppTheme.primaryColor),
+                  const SnackBar(
+                    content: Text('Mon–Sun plan updated'),
+                    backgroundColor: AppTheme.primaryColor,
+                  ),
                 );
               }
             },

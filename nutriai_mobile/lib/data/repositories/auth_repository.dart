@@ -65,6 +65,7 @@ class AuthRepository {
     await _storage.write(key: 'user_id', value: authResponse.user.id.toString());
     await _storage.write(key: 'user_email', value: authResponse.user.email);
     await _storage.write(key: 'user_name', value: authResponse.user.fullName);
+    await _storage.write(key: 'user_role', value: authResponse.user.role);
     await _storage.write(
       key: 'needs_lab_import',
       value: authResponse.needsLabImport ? 'true' : 'false',
@@ -100,6 +101,7 @@ class AuthRepository {
       'id': userId,
       'email': await _storage.read(key: 'user_email') ?? '',
       'name': await _storage.read(key: 'user_name') ?? '',
+      'role': await _storage.read(key: 'user_role') ?? 'user',
     };
   }
 }

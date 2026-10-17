@@ -65,6 +65,8 @@ def _user_payload(user) -> dict:
         "last_name": user.last_name,
         "subscription_tier": user.subscription_tier,
         "labcorp_patient_id": user.labcorp_patient_id,
+        "role": getattr(user, "role", None) or "user",
+        "is_active": getattr(user, "is_active", True),
     }
 
 

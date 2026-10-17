@@ -14,6 +14,12 @@ from app.services.diet_plan_engine import (
     apply_plan_modifications,
     suggest_replacement_meal,
 )
+from app.services.weekly_plan_service import (
+    ensure_current_week_plan,
+    friday_release_next_week,
+    schedule_status,
+    generate_weekly_plan,
+)
 from app.services.lab_result_service import get_lab_results_for_user
 
 router = APIRouter()
@@ -55,7 +61,29 @@ async def get_preferences(current_user: dict = Depends(get_current_user)):
 
 @router.get("/current", response_model=DietPlanResponse)
 async def get_current_diet_plan(current_user: dict = Depends(get_current_user)):
-    return get_or_create_plan(current_user)
+    """Current Mon–Sun week plan (creates one if missing)."""
+    return ensure_current_week_plan(current_user)
+
+
+@router.get("/schedule")
+async def get_plan_schedule(current_user: dict = Depends(get_current_user)):
+    """Weekly cadence: Mon–Sun plans; next week released on Friday."""
+    return schedule_status(int(current_user["id"]))
+
+
+@router.post("/weekly/generate", response_model=DietPlanResponse)
+async def generate_this_week_plan(current_user: dict = Depends(get_current_user)):
+    """Force-generate / refresh this week's Mon–Sun plan."""
+    return generate_weekly_plan(current_user, for_next_week=False)
+
+
+@router.post("/weekly/next", response_model=DietPlanResponse)
+async def generate_next_week_plan(current_user: dict = Depends(get_current_user)):
+    """
+    Generate next Mon–Sun week (normally done on Friday from biometrics + goals).
+    Allowed any day for admin/demo; UI should highlight Fridays.
+    """
+    return friday_release_next_week(current_user)
 
 
 @router.get("/history")
@@ -63,13 +91,35 @@ async def get_diet_plan_history(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """All past + current plans for improvement review."""
     rows = (
         db.query(DietPlanRecord)
         .filter(DietPlanRecord.user_id == int(current_user["id"]))
         .order_by(DietPlanRecord.created_at.desc())
         .all()
     )
-    return [row.payload for row in rows]
+    return {
+        "plans": [
+            {
+                "id": row.id,
+                "is_current": row.is_current,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "week_start": (row.payload or {}).get("week_start"),
+                "week_end": (row.payload or {}).get("week_end"),
+                "title": (row.payload or {}).get("title"),
+                "target_calories": (row.payload or {}).get("target_calories"),
+                "primary_goal": (row.payload or {}).get("primary_goal"),
+                "biometric_notes": (row.payload or {}).get("biometric_notes"),
+                "payload": row.payload,
+            }
+            for row in rows
+        ],
+        "total": len(rows),
+        "improvement_hint": (
+            "Compare week-over-week calories, goals, and biometric notes "
+            "alongside Tracking → Progress to see how your plan adapted."
+        ),
+    }
 
 
 @router.post("/generate", response_model=DietPlanResponse, status_code=status.HTTP_201_CREATED)
