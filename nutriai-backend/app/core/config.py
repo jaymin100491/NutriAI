@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
     DEMO_MODE: bool = True
+    # Seed ~55 illustrative cohort users (labs, plans, tracking, retest-ready orders)
+    SEED_DEMO_COHORT: bool = True
 
     # API
     API_V1_PREFIX: str = "/api/v1"

@@ -182,10 +182,71 @@ async def admin_generate_week(
 
 @router.get("/stats")
 async def admin_stats(admin: dict = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.db.seed_cohort import cohort_summary
+
+    cohort = cohort_summary(db)
     return {
         "users": db.query(User).count(),
         "active_users": db.query(User).filter(User.is_active.is_(True)).count(),
         "lab_results": db.query(LabResultRecord).count(),
         "diet_plans": db.query(DietPlanRecord).count(),
         "tracking_entries": db.query(TrackingRecord).count(),
+        "cohort": {
+            "total": cohort.get("total", 0),
+            "retest_ready": cohort.get("retest_ready", 0),
+            "with_meal_swap": cohort.get("with_meal_swap", 0),
+            "by_arc": cohort.get("by_arc", {}),
+            "version": cohort.get("version"),
+        },
     }
+
+
+@router.get("/cohort")
+async def get_cohort(
+    admin: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    arc: Optional[str] = None,
+    retest_ready: Optional[bool] = None,
+):
+    """Illustrative multi-persona demo cohort (not clinical research)."""
+    from app.db.seed_cohort import cohort_summary
+
+    data = cohort_summary(db)
+    users = data.get("users") or []
+    if arc:
+        users = [u for u in users if u.get("arc") == arc]
+    if retest_ready is not None:
+        users = [u for u in users if bool(u.get("retest_ready")) is retest_ready]
+    data["users"] = users
+    data["filtered_total"] = len(users)
+    return data
+
+
+@router.post("/cohort/seed")
+async def seed_cohort_endpoint(
+    force: bool = False,
+    admin: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Seed or refresh the 55-user demo cohort."""
+    from app.db.seed_cohort import seed_demo_cohort
+
+    return seed_demo_cohort(db, force=force)
+
+
+@router.get("/users/{user_id}/lab-order")
+async def get_sample_lab_order(
+    user_id: int,
+    admin: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Sample Labcorp-style wellness lab order page (DEMO ONLY).
+    Use for retest-ready personas — does not place a real order.
+    """
+    from app.services.lab_order_service import build_sample_lab_order
+
+    try:
+        return build_sample_lab_order(db, user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

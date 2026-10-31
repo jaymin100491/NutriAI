@@ -21,6 +21,7 @@ class ApiConstants {
   static const String labResultsPaste = '$apiV1/lab-results/paste';
   static const String labResultsUploadPdf = '$apiV1/lab-results/upload-pdf';
   static const String latestLabResult = '$apiV1/lab-results/latest';
+  static const String sampleLabOrder = '$apiV1/lab-results/sample-lab-order';
 
   static const String currentDietPlan = '$apiV1/diet-plans/current';
   static const String generateDietPlan = '$apiV1/diet-plans/generate';
@@ -31,6 +32,8 @@ class ApiConstants {
 
   static const String adminUsers = '$apiV1/admin/users';
   static const String adminStats = '$apiV1/admin/stats';
+  static const String adminCohort = '$apiV1/admin/cohort';
+  static const String adminCohortSeed = '$apiV1/admin/cohort/seed';
 
   static const String recipes = '$apiV1/recipes';
 

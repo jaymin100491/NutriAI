@@ -75,6 +75,17 @@ async def startup():
             seed_demo_workspace(db)
             logger.info("Demo workspace seeded (jaymin@nutriai.app)")
 
+        if settings.DEMO_MODE and settings.SEED_DEMO_COHORT:
+            from app.db.seed_cohort import seed_demo_cohort
+
+            result = seed_demo_cohort(db, force=False)
+            logger.info(
+                "Demo cohort: seeded=%s users=%s retest=%s",
+                result.get("seeded"),
+                result.get("users"),
+                result.get("retest_ready"),
+            )
+
         # Ensure production admin account exists
         admin = repo.get_user_by_email(db, "admin@nutriai.app")
         if not admin:
@@ -93,10 +104,11 @@ async def startup():
         db.close()
 
     logger.info(
-        "NutriAI started — env=%s mock_labs=%s demo_mode=%s",
+        "NutriAI started — env=%s mock_labs=%s demo_mode=%s cohort=%s",
         settings.ENVIRONMENT,
         settings.LABCORP_USE_MOCK,
         settings.DEMO_MODE,
+        settings.SEED_DEMO_COHORT,
     )
 
 

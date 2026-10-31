@@ -4,6 +4,8 @@ AI-powered personalized nutrition coaching from lab results.
 
 **Production flow:** sign up → upload lab PDF or paste markers → Mon–Sun diet plan in about a minute → daily biometrics → next week’s plan prepared every Friday → past-plan history → admin panel.
 
+**Stakeholder demo cohort:** 55 illustrative personas with longitudinal labs, mixed outcomes, meal swaps, and sample Labcorp-style retest orders — see [DEMO_COHORT.md](./DEMO_COHORT.md).
+
 ## Projects
 
 | Folder | Stack | Purpose |

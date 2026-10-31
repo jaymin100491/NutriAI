@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../admin/admin_cohort_screen.dart';
 import '../admin/admin_users_screen.dart';
+import '../admin/sample_lab_order_screen.dart';
 import '../diet_plan/diet_plan_history_screen.dart';
 import '../goals/goals_screen.dart';
 import '../lab_results/lab_results_list_screen.dart';
@@ -62,6 +64,12 @@ class ProfileScreen extends ConsumerWidget {
             ]),
             if (user?.isAdmin == true)
               _buildSection('Administration', [
+                _buildListTile(context, Icons.groups, 'Demo cohort (55 personas)', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminCohortScreen()),
+                  );
+                }),
                 _buildListTile(context, Icons.admin_panel_settings, 'Manage all users', () {
                   Navigator.push(
                     context,
@@ -69,6 +77,20 @@ class ProfileScreen extends ConsumerWidget {
                   );
                 }),
               ]),
+            _buildSection('Retest (demo)', [
+              _buildListTile(context, Icons.science, 'Sample Labcorp-style lab order', () {
+                if (user == null) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SampleLabOrderScreen(
+                      userName: user.fullName,
+                      adminView: false,
+                    ),
+                  ),
+                );
+              }),
+            ]),
             _buildSection('Settings', [
               _buildListTile(context, Icons.notifications, 'Notifications', () {}),
               _buildListTile(context, Icons.language, 'Language', () {}),

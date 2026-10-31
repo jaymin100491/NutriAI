@@ -274,6 +274,23 @@ async def list_supported_health_systems():
     }
 
 
+@router.get("/sample-lab-order")
+async def get_my_sample_lab_order(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Sample Labcorp-style wellness lab order for the signed-in user (DEMO ONLY).
+    Used for retest-ready cohort personas during stakeholder demos.
+    """
+    from app.services.lab_order_service import build_sample_lab_order
+
+    try:
+        return build_sample_lab_order(db, int(current_user["id"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/{result_id}", response_model=LabResultResponse)
 async def get_lab_result_detail(
     result_id: int,
