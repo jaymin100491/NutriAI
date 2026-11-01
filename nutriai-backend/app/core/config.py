@@ -1,9 +1,15 @@
-from pydantic_settings import BaseSettings
-from typing import List
-import os
+from __future__ import annotations
+
+import json
+from typing import Any, List, Union
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
+
     # Application
     APP_NAME: str = "NutriAI API"
     APP_VERSION: str = "1.0.0"
@@ -22,7 +28,7 @@ class Settings(BaseSettings):
     # Database — SQLite for local dev, PostgreSQL for staging/production
     DATABASE_URL: str = "sqlite:///./nutriai.db"
 
-    # CORS
+    # CORS — accepts JSON list OR comma-separated string from Render env
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:8080",
@@ -30,6 +36,8 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:8000",
         "http://localhost:4200",
+        "https://nutriai-pitch-demo.web.app",
+        "https://nutriai-pitch-demo.firebaseapp.com",
     ]
 
     # AI APIs — when set, weekly plans generate meals on the fly for any diet/cuisine
@@ -52,9 +60,24 @@ class Settings(BaseSettings):
     # Token encryption at rest (Fernet key — generate for production)
     TOKEN_ENCRYPTION_KEY: str = ""
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v: Any) -> List[str]:
+        if v is None or v == "":
+            return []
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if str(x).strip()]
+        if isinstance(v, str):
+            s = v.strip()
+            if s.startswith("["):
+                try:
+                    parsed = json.loads(s)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except json.JSONDecodeError:
+                    pass
+            return [p.strip() for p in s.split(",") if p.strip()]
+        return [str(v).strip()]
 
 
 settings = Settings()

@@ -20,9 +20,11 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
+_cors_origins = settings.ALLOWED_ORIGINS if not settings.DEBUG else ["*"]
+logger.info("CORS origins (%s): %s", "debug-all" if settings.DEBUG else "restricted", _cors_origins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS if not settings.DEBUG else ["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
