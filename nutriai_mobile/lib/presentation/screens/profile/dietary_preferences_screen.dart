@@ -35,6 +35,7 @@ class _DietaryPreferencesScreenState
   final Set<String> _cuisines = {};
   final List<String> _dislikes = [];
   final _dislikeController = TextEditingController();
+  final _cuisineController = TextEditingController();
   bool _loading = true;
   bool _saving = false;
 
@@ -47,7 +48,17 @@ class _DietaryPreferencesScreenState
   @override
   void dispose() {
     _dislikeController.dispose();
+    _cuisineController.dispose();
     super.dispose();
+  }
+
+  void _addCuisine() {
+    final c = _cuisineController.text.trim();
+    if (c.isEmpty) return;
+    setState(() {
+      _cuisines.add(c);
+      _cuisineController.clear();
+    });
   }
 
   Future<void> _load() async {
@@ -159,26 +170,62 @@ class _DietaryPreferencesScreenState
                   'Favorite cuisines',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  'Pick presets or type any cuisine (e.g. Mexican, Ethiopian, Korean). '
+                  'With an AI key configured, NutriAI generates meals on the fly — not limited to a fixed menu.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700], height: 1.35),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _cuisineOptions.map((c) {
-                    final selected = _cuisines.contains(c);
-                    return FilterChip(
-                      label: Text(c),
-                      selected: selected,
-                      onSelected: (on) {
-                        setState(() {
-                          if (on) {
-                            _cuisines.add(c);
-                          } else {
-                            _cuisines.remove(c);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
+                  children: [
+                    ..._cuisineOptions.map((c) {
+                      final selected = _cuisines.contains(c);
+                      return FilterChip(
+                        label: Text(c),
+                        selected: selected,
+                        onSelected: (on) {
+                          setState(() {
+                            if (on) {
+                              _cuisines.add(c);
+                            } else {
+                              _cuisines.remove(c);
+                            }
+                          });
+                        },
+                      );
+                    }),
+                    ..._cuisines
+                        .where((c) => !_cuisineOptions.contains(c))
+                        .map(
+                          (c) => InputChip(
+                            label: Text(c),
+                            onDeleted: () => setState(() => _cuisines.remove(c)),
+                          ),
+                        ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _cuisineController,
+                        decoration: const InputDecoration(
+                          hintText: 'Add any cuisine, e.g. Mexican',
+                          border: OutlineInputBorder(),
+                        ),
+                        onSubmitted: (_) => _addCuisine(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _addCuisine,
+                      child: const Text('Add'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 const Text(

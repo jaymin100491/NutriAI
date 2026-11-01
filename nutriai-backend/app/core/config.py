@@ -32,9 +32,10 @@ class Settings(BaseSettings):
         "http://localhost:4200",
     ]
 
-    # AI APIs
+    # AI APIs — when set, weekly plans generate meals on the fly for any diet/cuisine
     ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    AI_MEAL_GENERATION: bool = True  # prefer live AI chef; catalog is fallback
 
     # Legacy Labcorp/Okta fields kept optional for old code paths — unused in open-market demo
     LABCORP_PORTAL_API_URL: str = ""

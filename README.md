@@ -65,4 +65,4 @@ See [DEPLOY.md](./DEPLOY.md). Short version:
 
 Copy `nutriai-backend/.env.example` → `.env`. Do not commit secrets.
 
-Optional AI keys (goal interpretation / chat): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+**AI keys (live product):** set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` so weekly plans generate meals **on the fly** for any diet + cuisine (e.g. Mexican vegetarian). Without a key, the professional catalog is used as fallback. Also powers free-text goal interpretation / chat.

@@ -58,3 +58,15 @@ curl -X POST "http://127.0.0.1:8000/api/v1/admin/cohort/seed?force=true" \
 ## Deploy note
 
 Seeding 55 users with history can take **1–3 minutes** on first boot. Keep `SEED_DEMO_COHORT=true` for the live demo host; set `false` if you want a clean production tenant later.
+
+## Live AI meal generation (new users during demo)
+
+Cohort history uses the offline catalog for speed. **New / live users** regenerate plans with the **live AI chef** when you set:
+
+```bash
+OPENAI_API_KEY=sk-...
+# or ANTHROPIC_API_KEY=...
+AI_MEAL_GENERATION=true
+```
+
+Then Profile → Dietary Preferences → e.g. Vegetarian + Mexican (or any typed cuisine) → Save & regenerate. Plans are not limited to a fixed menu.

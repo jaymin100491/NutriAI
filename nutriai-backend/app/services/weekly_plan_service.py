@@ -25,6 +25,11 @@ from app.db import repository as repo
 from app.services.professional_meals import build_professional_catalog, PROFESSIONAL_MEALS
 from app.services.goal_service import get_goals_for_user, GOAL_DEFINITIONS
 from app.services.diet_plan_engine import _nutrition_for_goal, _build_shopping_list, MEAL_TYPES
+from app.services.ai_meal_generator import (
+    ai_meal_generation_enabled,
+    generate_ai_week_meals,
+    normalize_cuisine_list,
+)
 
 
 def week_bounds(ref: Optional[date] = None) -> Tuple[date, date]:
@@ -141,8 +146,14 @@ def generate_weekly_plan(
     *,
     for_next_week: bool = False,
     lab_summary: Optional[str] = None,
+    allow_ai: bool = True,
 ) -> Dict[str, Any]:
-    """Generate a Mon–Sun professional weekly plan and archive the previous current plan."""
+    """
+    Generate a Mon–Sun professional weekly plan and archive the previous current plan.
+
+    Live product path: when AI keys are configured, meals are generated on the fly
+    for any diet + cuisine combination. Catalog is fallback (and used for bulk demo seeding).
+    """
     user_id = int(user["id"])
     today = date.today()
     if for_next_week:
@@ -166,36 +177,94 @@ def generate_weekly_plan(
     prefs = get_user_preferences(user_id)
     dietary = prefs.get("dietary_preference") or user.get("dietary_preference") or "omnivore"
     dislikes = prefs.get("dislikes") or []
-    cuisine_prefs = prefs.get("cuisine_preferences") or [
-        "Indian", "Mediterranean", "Mexican", "Thai", "Japanese", "American", "Middle Eastern", "Asian"
+    cuisine_prefs = normalize_cuisine_list(
+        prefs.get("cuisine_preferences")
+        or user.get("cuisine_preferences")
+        or ["Indian", "Mediterranean", "Mexican", "Thai", "Japanese", "American", "Middle Eastern", "Asian"]
+    )
+
+    weekdays: List[str] = []
+    d = start
+    while d <= end:
+        weekdays.append(d.strftime("%A"))
+        d += timedelta(days=1)
+
+    meals: List[Dict[str, Any]] = []
+    generation_source = "catalog"
+    ai_rationale_extra = ""
+
+    goal_labels = [
+        next((g.get("label") for g in goals if g.get("goal_type") == gt), gt) for gt in goal_types
     ]
 
-    rng = random.Random(hash(f"{user_id}|{start.isoformat()}|{primary_goal}|{dietary}|{','.join(dislikes)}") & 0xFFFFFFFF)
-    meals: List[Dict[str, Any]] = []
-    recent_names: List[str] = []
+    if allow_ai and ai_meal_generation_enabled():
+        ai = generate_ai_week_meals(
+            dietary=dietary,
+            cuisine_prefs=cuisine_prefs,
+            dislikes=dislikes,
+            goal_labels=goal_labels,
+            target_calories=target_calories,
+            week_start=start.isoformat(),
+            weekdays=weekdays,
+            lab_summary=lab_summary,
+            biometric_notes=bio.get("notes"),
+        )
+        if ai and ai.get("meals"):
+            generation_source = "ai_live"
+            ai_rationale_extra = ai.get("rationale") or ""
+            day = start
+            day_num = 1
+            by_day: Dict[int, List[Dict[str, Any]]] = {}
+            for m in ai["meals"]:
+                by_day.setdefault(int(m["day"]), []).append(m)
+            while day <= end:
+                for m in by_day.get(day_num, []):
+                    item = deepcopy(m)
+                    item["date"] = day.isoformat()
+                    item["weekday"] = day.strftime("%A")
+                    meals.append(item)
+                day += timedelta(days=1)
+                day_num += 1
 
-    day = start
-    day_num = 1
-    while day <= end:
-        day_goal = goal_types[(day_num - 1) % len(goal_types)]
-        for meal_type in MEAL_TYPES:
-            pool = _filter_professional(meal_type, dietary, dislikes, goal_tags, cuisine_prefs)
-            pool = [p for p in pool if p["name"] not in recent_names[-8:]] or pool
-            recipe = deepcopy(rng.choice(pool[: max(3, min(12, len(pool)))]))
-            recent_names.append(recipe["name"])
-            meals.append({
-                "day": day_num,
-                "weekday": day.strftime("%A"),
-                "date": day.isoformat(),
-                "meal_type": meal_type,
-                "recipe_id": recipe["id"],
-                "recipe": recipe,
-                "cuisine_focus": recipe.get("cuisine_type"),
-            })
-        day += timedelta(days=1)
-        day_num += 1
+    if not meals:
+        # Catalog fallback (also used when AI keys are not yet configured)
+        generation_source = "catalog"
+        rng = random.Random(
+            hash(f"{user_id}|{start.isoformat()}|{primary_goal}|{dietary}|{','.join(dislikes)}") & 0xFFFFFFFF
+        )
+        recent_names: List[str] = []
+        day = start
+        day_num = 1
+        while day <= end:
+            for meal_type in MEAL_TYPES:
+                pool = _filter_professional(meal_type, dietary, dislikes, goal_tags, cuisine_prefs)
+                pool = [p for p in pool if p["name"] not in recent_names[-8:]] or pool
+                recipe = deepcopy(rng.choice(pool[: max(3, min(12, len(pool)))]))
+                recent_names.append(recipe["name"])
+                meals.append(
+                    {
+                        "day": day_num,
+                        "weekday": day.strftime("%A"),
+                        "date": day.isoformat(),
+                        "meal_type": meal_type,
+                        "recipe_id": recipe["id"],
+                        "recipe": recipe,
+                        "cuisine_focus": recipe.get("cuisine_type"),
+                    }
+                )
+            day += timedelta(days=1)
+            day_num += 1
+        ai_rationale_extra = (
+            "Built from the professional meal engine "
+            "(add OPENAI_API_KEY or ANTHROPIC_API_KEY for live on-the-fly generation of any cuisine)."
+        )
 
     primary_label = next((g.get("label") for g in goals if g.get("goal_type") == primary_goal), primary_goal)
+    source_note = (
+        "Live AI chef generated meals for your exact diet + cuisine preferences."
+        if generation_source == "ai_live"
+        else "Catalog engine used (AI keys not configured or AI unavailable)."
+    )
     plan = {
         "id": next_plan_id(),
         "user_id": user_id,
@@ -216,9 +285,11 @@ def generate_weekly_plan(
         "meals": meals,
         "shopping_list": _build_shopping_list(meals),
         "biometric_notes": bio.get("notes", []),
+        "generation_source": generation_source,
         "ai_rationale": (
             f"Fixed Mon–Sun plan for {start.isoformat()} → {end.isoformat()}. "
-            f"Primary focus: {primary_label}. "
+            f"Primary focus: {primary_label}. {source_note} "
+            + (ai_rationale_extra + " " if ai_rationale_extra else "")
             + " ".join(bio.get("notes", []))
             + (f" Labs: {lab_summary}" if lab_summary else "")
             + " Next week's plan is prepared every Friday from your biometrics + goals."
@@ -249,6 +320,7 @@ def schedule_status(user_id: int) -> Dict[str, Any]:
     monday, sunday = week_bounds(today)
     n_mon, n_sun = next_week_bounds(today)
     existing = get_user_plan(user_id)
+    ai_live = ai_meal_generation_enabled()
     return {
         "today": today.isoformat(),
         "weekday": today.strftime("%A"),
@@ -257,6 +329,8 @@ def schedule_status(user_id: int) -> Dict[str, Any]:
         "next_week": {"start": n_mon.isoformat(), "end": n_sun.isoformat()},
         "current_plan_week_start": (existing or {}).get("week_start"),
         "next_plan_available": bool(existing and existing.get("week_start") == n_mon.isoformat()),
+        "ai_meal_generation": ai_live,
+        "generation_mode": "ai_live" if ai_live else "catalog_fallback",
         "message": (
             "Friday release: next week's Mon–Sun plan is ready to generate from your latest biometrics."
             if is_friday(today)

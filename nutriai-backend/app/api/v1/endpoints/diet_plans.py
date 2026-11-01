@@ -204,7 +204,9 @@ async def update_preferences(
     if request.dislikes is not None:
         prefs["dislikes"] = [d.strip().lower() for d in request.dislikes if d.strip()]
     if request.cuisine_preferences is not None:
-        prefs["cuisine_preferences"] = request.cuisine_preferences
+        from app.services.ai_meal_generator import normalize_cuisine_list
+
+        prefs["cuisine_preferences"] = normalize_cuisine_list(request.cuisine_preferences)
     if request.allergies is not None:
         prefs["allergies"] = request.allergies
     set_user_preferences(user_id, prefs)
@@ -214,9 +216,11 @@ async def update_preferences(
         user = {
             **current_user,
             "dietary_preference": prefs.get("dietary_preference", "omnivore"),
+            "cuisine_preferences": prefs.get("cuisine_preferences", []),
             "allergies": prefs.get("allergies", []),
         }
-        plan = generate_diet_plan(user=user, duration_days=7)
+        # Live weekly path — uses AI chef when API keys are configured
+        plan = generate_weekly_plan(user, for_next_week=False, allow_ai=True)
 
     return {
         "preferences": {

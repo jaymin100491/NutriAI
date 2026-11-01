@@ -456,6 +456,7 @@ def seed_demo_cohort(db: Session, *, force: bool = False) -> Dict[str, Any]:
             user_payload,
             for_next_week=False,
             lab_summary=prefs["narrative"],
+            allow_ai=False,  # cohort seed stays offline/fast; live users use AI when keyed
         )
         if swap:
             meals, swap_meta = _apply_meal_swap(current.get("meals") or [], swap, catalog)
