@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/theme/app_theme.dart';
+import 'admin_user_detail_screen.dart';
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -59,98 +60,16 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     }
   }
 
-  Future<void> _openUser(int userId) async {
-    try {
-      final dio = ref.read(dioClientProvider).dio;
-      final res = await dio.get('${ApiConstants.adminUsers}/$userId');
-      final data = Map<String, dynamic>.from(res.data as Map);
-      if (!mounted) return;
-      await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.85,
-          builder: (context, controller) {
-            final user = data['user'] as Map? ?? {};
-            final plans = data['diet_plans'] as List? ?? [];
-            final labs = data['lab_results'] as List? ?? [];
-            final tracking = data['tracking'] as List? ?? [];
-            final goals = data['goals'] as List? ?? [];
-            return ListView(
-              controller: controller,
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                  '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                Text('${user['email']} · role=${user['role']} · active=${user['is_active']}'),
-                const SizedBox(height: 12),
-                Text('Goals: ${goals.length} · Labs: ${labs.length} · Plans: ${plans.length} · Tracking: ${tracking.length}'),
-                const Divider(),
-                const Text('Recent plans', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...plans.take(5).map((p) {
-                  final payload = (p as Map)['payload'] as Map? ?? {};
-                  return ListTile(
-                    dense: true,
-                    title: Text('${payload['title'] ?? 'Plan'}'),
-                    subtitle: Text(
-                      '${payload['week_start'] ?? ''} → ${payload['week_end'] ?? ''} · '
-                      '${payload['target_calories'] ?? ''} kcal · current=${p['is_current']}',
-                    ),
-                  );
-                }),
-                const Divider(),
-                const Text('Goals', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...goals.take(8).map((g) {
-                  final m = g as Map;
-                  return ListTile(
-                    dense: true,
-                    title: Text('${m['label'] ?? m['goal_type']}'),
-                    subtitle: Text('priority ${m['priority']} · ${m['source']}'),
-                  );
-                }),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () async {
-                    await dio.post(
-                      '${ApiConstants.adminUsers}/$userId/generate-week',
-                      queryParameters: {'next_week': false},
-                    );
-                    if (!mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Weekly plan regenerated for user')),
-                    );
-                    _load();
-                  },
-                  child: const Text('Generate this week plan'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    await dio.patch(
-                      '${ApiConstants.adminUsers}/$userId',
-                      data: {'is_active': !(user['is_active'] as bool? ?? true)},
-                    );
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      _load();
-                    }
-                  },
-                  child: Text((user['is_active'] as bool? ?? true) ? 'Deactivate user' : 'Activate user'),
-                ),
-              ],
-            );
-          },
+  void _openUser(int userId, {String? nameHint}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminUserDetailScreen(
+          userId: userId,
+          titleHint: nameHint,
         ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -223,7 +142,11 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                               (u['is_active'] as bool? ?? true) ? Icons.check_circle : Icons.block,
                               color: (u['is_active'] as bool? ?? true) ? Colors.green : Colors.red,
                             ),
-                            onTap: () => _openUser(u['id'] as int),
+                            onTap: () => _openUser(
+                              u['id'] as int,
+                              nameHint:
+                                  '${u['first_name'] ?? ''} ${u['last_name'] ?? ''}'.trim(),
+                            ),
                           );
                         },
                       ),

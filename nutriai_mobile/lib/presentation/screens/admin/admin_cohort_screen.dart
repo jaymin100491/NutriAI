@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/theme/app_theme.dart';
+import 'admin_user_detail_screen.dart';
 import 'sample_lab_order_screen.dart';
 
 /// Admin view of the illustrative 55-user demo cohort (not clinical research).
@@ -204,8 +205,25 @@ class _AdminCohortScreenState extends ConsumerState<AdminCohortScreen> {
                                 '${retest ? ' · RETEST READY' : ''}',
                               ),
                               isThreeLine: true,
-                              trailing: retest
-                                  ? TextButton(
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextButton(
+                                    child: const Text('Plans'),
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => AdminUserDetailScreen(
+                                            userId: u['id'] as int,
+                                            titleHint: '${u['name']}',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  if (retest)
+                                    TextButton(
                                       child: const Text('Lab order'),
                                       onPressed: () {
                                         Navigator.push(
@@ -219,22 +237,20 @@ class _AdminCohortScreenState extends ConsumerState<AdminCohortScreen> {
                                           ),
                                         );
                                       },
-                                    )
-                                  : null,
-                              onTap: retest
-                                  ? () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => SampleLabOrderScreen(
-                                            userId: u['id'] as int,
-                                            userName: '${u['name']}',
-                                            adminView: true,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  : null,
+                                    ),
+                                ],
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AdminUserDetailScreen(
+                                      userId: u['id'] as int,
+                                      titleHint: '${u['name']}',
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           );
                         },
