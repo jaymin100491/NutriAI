@@ -48,9 +48,10 @@ class _AppEntryState extends ConsumerState<AppEntry> {
 
     final authState = ref.read(authProvider);
     if (authState.isAuthenticated) {
-      final next = authState.needsLabImport
-          ? const PasteLabsScreen()
-          : const MainNavigationScreen();
+      final skipLabs = authState.user?.isAdmin == true || !authState.needsLabImport;
+      final next = skipLabs
+          ? const MainNavigationScreen()
+          : const PasteLabsScreen();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => next),
       );
