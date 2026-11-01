@@ -20,11 +20,27 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
-_cors_origins = settings.ALLOWED_ORIGINS if not settings.DEBUG else ["*"]
-logger.info("CORS origins (%s): %s", "debug-all" if settings.DEBUG else "restricted", _cors_origins)
+# Always allow local + Firebase Hosting demo origins (credentials require explicit origins, not "*")
+_cors_origins = list(settings.ALLOWED_ORIGINS or [])
+for _o in (
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "https://nutriai-pitch-demo.web.app",
+    "https://nutriai-pitch-demo.firebaseapp.com",
+):
+    if _o not in _cors_origins:
+        _cors_origins.append(_o)
+
+logger.info("CORS origins: %s (debug=%s)", _cors_origins, settings.DEBUG)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    # When DEBUG, also accept any localhost / *.web.app / *.firebaseapp.com origin
+    allow_origin_regex=(
+        r"https://[\w-]+\.web\.app|https://[\w-]+\.firebaseapp\.com|http://(localhost|127\.0\.0\.1)(:\d+)?"
+        if settings.DEBUG
+        else None
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
