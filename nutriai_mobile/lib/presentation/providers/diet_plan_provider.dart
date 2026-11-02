@@ -75,19 +75,22 @@ class DietPlanState {
     DietPlanHistoryResponse? history,
     Map<String, dynamic>? schedule,
     bool? isLoading,
-    String? error,
+    Object? error = _unset,
     int? selectedDay,
+    bool clearPlan = false,
   }) {
     return DietPlanState(
-      currentPlan: currentPlan ?? this.currentPlan,
+      currentPlan: clearPlan ? null : (currentPlan ?? this.currentPlan),
       history: history ?? this.history,
       schedule: schedule ?? this.schedule,
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      error: identical(error, _unset) ? this.error : error as String?,
       selectedDay: selectedDay ?? this.selectedDay,
     );
   }
 }
+
+const Object _unset = Object();
 
 class DietPlanNotifier extends StateNotifier<DietPlanState> {
   final DietPlanRepository _repository;
@@ -98,7 +101,7 @@ class DietPlanNotifier extends StateNotifier<DietPlanState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final plan = await _repository.getCurrentDietPlan();
-      state = state.copyWith(currentPlan: plan, isLoading: false);
+      state = state.copyWith(currentPlan: plan, isLoading: false, error: null);
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to load diet plan',
@@ -128,7 +131,12 @@ class DietPlanNotifier extends StateNotifier<DietPlanState> {
     try {
       final plan = await _repository.generateWeeklyPlan(nextWeek: nextWeek);
       final schedule = await _repository.getSchedule();
-      state = state.copyWith(currentPlan: plan, schedule: schedule, isLoading: false);
+      state = state.copyWith(
+        currentPlan: plan,
+        schedule: schedule,
+        isLoading: false,
+        error: null,
+      );
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to generate weekly plan',

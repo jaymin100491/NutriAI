@@ -354,8 +354,23 @@ class _TodaysMeals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final plan = planState.currentPlan;
-    if (plan == null) {
+    if (planState.isLoading && plan == null) {
       return const _SkeletonCard(height: 160);
+    }
+    if (plan == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppTheme.borderSubtle),
+        ),
+        child: Text(
+          planState.error ?? 'No meals for today yet — open Plan to generate your week.',
+          style: const TextStyle(color: AppTheme.textSecondaryColor, height: 1.4),
+        ),
+      );
     }
 
     final today = DateTime.now();

@@ -46,6 +46,28 @@ async def search_recipes_endpoint(
     )
 
 
+@router.get("/favorites")
+async def get_favorite_recipes(current_user: dict = Depends(get_current_user)):
+    """Favorite recipes for the current user (empty list until favorites UX is wired)."""
+    # Must be declared before /{recipe_id} so "favorites" is not parsed as an int.
+    return []
+
+
+@router.post("/{recipe_id}/favorite")
+async def toggle_favorite_recipe(
+    recipe_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Toggle favorite — stub success for demo clients."""
+    recipe = get_recipe_by_id(recipe_id)
+    if not recipe:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recipe not found",
+        )
+    return {"ok": True, "recipe_id": recipe_id, "favorited": True}
+
+
 @router.get("/{recipe_id}", response_model=RecipeResponse)
 async def get_recipe_detail(
     recipe_id: int,

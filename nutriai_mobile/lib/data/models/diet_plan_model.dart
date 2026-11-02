@@ -1,5 +1,34 @@
 import 'package:equatable/equatable.dart';
 
+int _asInt(dynamic v, [int fallback = 0]) {
+  if (v == null) return fallback;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString()) ?? fallback;
+}
+
+double _asDouble(dynamic v, [double fallback = 0]) {
+  if (v == null) return fallback;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString()) ?? fallback;
+}
+
+String _asString(dynamic v, [String fallback = '']) {
+  if (v == null) return fallback;
+  return v.toString();
+}
+
+List<String> _asStringList(dynamic v) {
+  if (v is! List) return const [];
+  return v.map((e) => e.toString()).toList();
+}
+
+Map<String, dynamic> _asMap(dynamic v) {
+  if (v is Map<String, dynamic>) return v;
+  if (v is Map) return Map<String, dynamic>.from(v);
+  return <String, dynamic>{};
+}
+
 class DietPlan extends Equatable {
   final int id;
   final int userId;
@@ -31,28 +60,33 @@ class DietPlan extends Equatable {
 
   factory DietPlan.fromJson(Map<String, dynamic> json) {
     final shopping = json['shopping_list'];
+    final mealsRaw = json['meals'];
+    final meals = <MealPlan>[];
+    if (mealsRaw is List) {
+      for (final e in mealsRaw) {
+        try {
+          meals.add(MealPlan.fromJson(_asMap(e)));
+        } catch (_) {
+          // Skip malformed meal rows rather than failing the whole plan.
+        }
+      }
+    }
+
     return DietPlan(
-      id: (json['id'] as num).toInt(),
-      userId: (json['user_id'] as num).toInt(),
-      title: (json['title'] as String?) ?? 'Weekly plan',
-      startDate: (json['start_date'] as String?) ?? (json['week_start'] as String?) ?? '',
-      endDate: (json['end_date'] as String?) ?? (json['week_end'] as String?) ?? '',
-      durationDays: (json['duration_days'] as num?)?.toInt() ?? 7,
-      goals: (json['goals'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
-      targetCalories: (json['target_calories'] as num?)?.toInt() ?? 1800,
-      macroTargets: MacroTargets.fromJson(
-        Map<String, dynamic>.from(
-          (json['macro_targets'] as Map?) ??
-              {'protein_percent': 25, 'carb_percent': 45, 'fat_percent': 30, 'fiber_grams': 30},
-        ),
-      ),
-      meals: (json['meals'] as List<dynamic>? ?? [])
-          .map((e) => MealPlan.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList(),
+      id: _asInt(json['id']),
+      userId: _asInt(json['user_id']),
+      title: _asString(json['title'], 'Weekly plan'),
+      startDate: _asString(json['start_date'] ?? json['week_start']),
+      endDate: _asString(json['end_date'] ?? json['week_end']),
+      durationDays: _asInt(json['duration_days'], 7),
+      goals: _asStringList(json['goals']),
+      targetCalories: _asInt(json['target_calories'], 1800),
+      macroTargets: MacroTargets.fromJson(_asMap(json['macro_targets'])),
+      meals: meals,
       shoppingList: shopping is Map
-          ? ShoppingList.fromJson(Map<String, dynamic>.from(shopping))
+          ? ShoppingList.fromJson(_asMap(shopping))
           : const ShoppingList(categories: {}),
-      aiRationale: json['ai_rationale'] as String?,
+      aiRationale: json['ai_rationale']?.toString(),
     );
   }
 
@@ -75,10 +109,10 @@ class MacroTargets extends Equatable {
 
   factory MacroTargets.fromJson(Map<String, dynamic> json) {
     return MacroTargets(
-      proteinPercent: json['protein_percent'] as int,
-      carbPercent: json['carb_percent'] as int,
-      fatPercent: json['fat_percent'] as int,
-      fiberGrams: json['fiber_grams'] as int,
+      proteinPercent: _asInt(json['protein_percent'], 25),
+      carbPercent: _asInt(json['carb_percent'], 45),
+      fatPercent: _asInt(json['fat_percent'], 30),
+      fiberGrams: _asInt(json['fiber_grams'], 30),
     );
   }
 
@@ -102,12 +136,20 @@ class MealPlan extends Equatable {
   });
 
   factory MealPlan.fromJson(Map<String, dynamic> json) {
+    Recipe? recipe;
+    if (json['recipe'] != null) {
+      try {
+        recipe = Recipe.fromJson(_asMap(json['recipe']));
+      } catch (_) {
+        recipe = null;
+      }
+    }
     return MealPlan(
-      day: json['day'] as int,
-      date: json['date'] as String,
-      mealType: json['meal_type'] as String,
-      recipeId: json['recipe_id'] as int,
-      recipe: json['recipe'] != null ? Recipe.fromJson(json['recipe'] as Map<String, dynamic>) : null,
+      day: _asInt(json['day'], 1),
+      date: _asString(json['date']),
+      mealType: _asString(json['meal_type'], 'meal'),
+      recipeId: _asInt(json['recipe_id']),
+      recipe: recipe,
     );
   }
 
@@ -151,24 +193,32 @@ class Recipe extends Equatable {
   });
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
+    final ingredientsRaw = json['ingredients'];
+    final ingredients = <Ingredient>[];
+    if (ingredientsRaw is List) {
+      for (final e in ingredientsRaw) {
+        try {
+          ingredients.add(Ingredient.fromJson(_asMap(e)));
+        } catch (_) {}
+      }
+    }
+
     return Recipe(
-      id: json['id'] as int,
-      name: json['name'] as String,
-      description: json['description'] as String,
-      cuisineType: json['cuisine_type'] as String,
-      mealType: (json['meal_type'] as List<dynamic>).map((e) => e.toString()).toList(),
-      dietaryTags: (json['dietary_tags'] as List<dynamic>).map((e) => e.toString()).toList(),
-      healthTags: (json['health_tags'] as List<dynamic>).map((e) => e.toString()).toList(),
-      prepTimeMinutes: json['prep_time_minutes'] as int,
-      cookTimeMinutes: json['cook_time_minutes'] as int,
-      servings: json['servings'] as int,
-      difficulty: json['difficulty'] as String,
-      imageUrl: json['image_url'] as String,
-      ingredients: (json['ingredients'] as List<dynamic>)
-          .map((e) => Ingredient.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      instructions: (json['instructions'] as List<dynamic>).map((e) => e.toString()).toList(),
-      nutrition: Nutrition.fromJson(json['nutrition'] as Map<String, dynamic>),
+      id: _asInt(json['id']),
+      name: _asString(json['name'], 'Recipe'),
+      description: _asString(json['description']),
+      cuisineType: _asString(json['cuisine_type'], 'American'),
+      mealType: _asStringList(json['meal_type']),
+      dietaryTags: _asStringList(json['dietary_tags']),
+      healthTags: _asStringList(json['health_tags']),
+      prepTimeMinutes: _asInt(json['prep_time_minutes'], 15),
+      cookTimeMinutes: _asInt(json['cook_time_minutes'], 20),
+      servings: _asInt(json['servings'], 1),
+      difficulty: _asString(json['difficulty'], 'easy'),
+      imageUrl: _asString(json['image_url']),
+      ingredients: ingredients,
+      instructions: _asStringList(json['instructions']),
+      nutrition: Nutrition.fromJson(_asMap(json['nutrition'])),
     );
   }
 
@@ -193,10 +243,10 @@ class Ingredient extends Equatable {
 
   factory Ingredient.fromJson(Map<String, dynamic> json) {
     return Ingredient(
-      item: json['item'] as String,
-      quantity: json['quantity'] as String,
-      unit: json['unit'] as String,
-      notes: json['notes'] as String?,
+      item: _asString(json['item'], 'Ingredient'),
+      quantity: _asString(json['quantity'], '1'),
+      unit: _asString(json['unit']),
+      notes: json['notes']?.toString(),
     );
   }
 
@@ -227,14 +277,14 @@ class Nutrition extends Equatable {
 
   factory Nutrition.fromJson(Map<String, dynamic> json) {
     return Nutrition(
-      calories: json['calories'] as int,
-      proteinG: (json['protein_g'] as num).toDouble(),
-      carbsG: (json['carbs_g'] as num).toDouble(),
-      fatG: (json['fat_g'] as num).toDouble(),
-      fiberG: (json['fiber_g'] as num).toDouble(),
-      sugarG: (json['sugar_g'] as num).toDouble(),
-      sodiumMg: json['sodium_mg'] as int,
-      cholesterolMg: json['cholesterol_mg'] as int,
+      calories: _asInt(json['calories']),
+      proteinG: _asDouble(json['protein_g']),
+      carbsG: _asDouble(json['carbs_g']),
+      fatG: _asDouble(json['fat_g']),
+      fiberG: _asDouble(json['fiber_g']),
+      sugarG: _asDouble(json['sugar_g']),
+      sodiumMg: _asInt(json['sodium_mg']),
+      cholesterolMg: _asInt(json['cholesterol_mg']),
     );
   }
 
@@ -250,8 +300,18 @@ class ShoppingList extends Equatable {
   factory ShoppingList.fromJson(Map<String, dynamic> json) {
     final Map<String, List<ShoppingItem>> categories = {};
     json.forEach((key, value) {
-      categories[key] = (value as List<dynamic>)
-          .map((e) => ShoppingItem.fromJson(e as Map<String, dynamic>))
+      if (value is! List) {
+        categories[key] = const [];
+        return;
+      }
+      categories[key] = value
+          .map((e) {
+            try {
+              return ShoppingItem.fromJson(_asMap(e));
+            } catch (_) {
+              return ShoppingItem(item: e.toString(), quantity: '');
+            }
+          })
           .toList();
     });
     return ShoppingList(categories: categories);
@@ -272,8 +332,8 @@ class ShoppingItem extends Equatable {
 
   factory ShoppingItem.fromJson(Map<String, dynamic> json) {
     return ShoppingItem(
-      item: json['item'] as String,
-      quantity: json['quantity'] as String,
+      item: _asString(json['item'], 'Item'),
+      quantity: _asString(json['quantity']),
     );
   }
 
