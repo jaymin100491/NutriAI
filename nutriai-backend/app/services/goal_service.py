@@ -163,6 +163,26 @@ GOAL_DEFINITIONS = {
         "macros": {"protein_percent": 20, "carb_percent": 55, "fat_percent": 25, "fiber_grams": 30},
         "health_tags": ["low-sodium-option", "balanced", "heart-healthy"],
     },
+    "glp1_support": {
+        "label": "Get the Most from a GLP-1",
+        "description": "Protein-forward, nausea-aware meals that support GLP-1 therapy and lean mass",
+        "icon": "meds",
+        "lab_triggers": [],
+        "abnormal_status": [],
+        "calories": 1500,
+        "macros": {"protein_percent": 35, "carb_percent": 35, "fat_percent": 30, "fiber_grams": 28},
+        "health_tags": ["high-protein", "lean", "low-glycemic", "gentle"],
+    },
+    "eat_healthier": {
+        "label": "Eat Healthier Overall",
+        "description": "Balanced, nutrient-dense meals for everyday better eating",
+        "icon": "leaf",
+        "lab_triggers": [],
+        "abnormal_status": [],
+        "calories": 1900,
+        "macros": {"protein_percent": 25, "carb_percent": 45, "fat_percent": 30, "fiber_grams": 32},
+        "health_tags": ["balanced", "high-fiber", "nutrient-dense", "heart-healthy"],
+    },
 }
 
 # Free-text → known goal mapping (first match wins by specificity order)
@@ -172,7 +192,9 @@ _GOAL_ALIASES = [
     (("blood sugar", "diabetes", "glucose", "a1c", "hba1c", "prediabet", "insulin"), "manage_diabetes"),
     (("lose weight", "weight loss", "fat loss", "slim", "cut fat", "lose fat"), "weight_loss"),
     (("gain weight", "underweight", "put on weight"), "weight_gain"),
-    (("muscle", "bulk", "strength", "hypertrophy", "gain muscle", "toned", "gym"), "muscle_gain"),
+    (("muscle", "bulk", "strength", "hypertrophy", "gain muscle", "toned", "gym", "tone up"), "muscle_gain"),
+    (("glp-1", "glp1", "ozempic", "wegovy", "mounjaro", "semaglutide", "tirzepatide"), "glp1_support"),
+    (("eat healthier", "eat healthy", "healthier overall", "clean eating"), "eat_healthier"),
     (("more protein", "high protein", "protein intake", "extra protein"), "more_protein"),
     (("vitamin d", "vit d"), "increase_vitamin_d"),
     (

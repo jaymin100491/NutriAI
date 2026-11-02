@@ -49,6 +49,7 @@ dependencies:
   # JSON
   json_annotation: ^4.8.1
   file_picker: ^8.0.0
+  google_fonts: ^8.2.1
 
 dev_dependencies:
   flutter_test:

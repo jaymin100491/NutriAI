@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/onboarding_prefs.dart';
 import '../../providers/auth_provider.dart';
 import '../labs/paste_labs_screen.dart';
 import '../main_navigation_screen.dart';
+import '../onboarding/intent_onboarding_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -19,6 +21,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _lastNameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSignup = false;
+  bool _obscure = true;
 
   @override
   void initState() {
@@ -40,7 +43,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  void _routeAfterAuth() {
+  Future<void> _routeAfterAuth({required bool isNewSignup}) async {
     final authState = ref.read(authProvider);
     if (!authState.isAuthenticated) {
       if (authState.error != null) {
@@ -51,10 +54,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final skipLabs = authState.user?.isAdmin == true || !authState.needsLabImport;
-    final next = skipLabs
-        ? const MainNavigationScreen()
-        : const PasteLabsScreen();
+    final user = authState.user;
+    final doneIntent = await OnboardingPrefs.hasCompletedIntent(user?.id);
+    // New signups and anyone who hasn't picked an intent see the Fitia-style chooser.
+    if (isNewSignup || !doneIntent) {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const IntentOnboardingScreen()),
+      );
+      return;
+    }
+
+    final skipLabs = user?.isAdmin == true || !authState.needsLabImport;
+    final next = skipLabs ? const MainNavigationScreen() : const PasteLabsScreen();
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => next),
     );
@@ -62,8 +75,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final signup = _isSignup;
 
-    if (_isSignup) {
+    if (signup) {
       await ref.read(authProvider.notifier).signup(
             email: _emailController.text.trim(),
             password: _passwordController.text,
@@ -78,7 +92,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     if (!mounted) return;
-    _routeAfterAuth();
+    await _routeAfterAuth(isNewSignup: signup);
   }
 
   Future<void> _useDemo() async {
@@ -87,158 +101,218 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isSignup = false);
     await ref.read(authProvider.notifier).login('jaymin@nutriai.app', 'demo');
     if (!mounted) return;
-    _routeAfterAuth();
+    await _routeAfterAuth(isNewSignup: false);
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final size = MediaQuery.sizeOf(context);
 
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 40),
-                Icon(Icons.restaurant_menu, size: 80, color: AppTheme.primaryColor),
-                const SizedBox(height: 24),
-                const Text(
-                  'NutriAI',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _isSignup
-                      ? 'Create your account, then paste a few lab markers'
-                      : 'World-class nutrition coaching from your lab results',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, color: AppTheme.textSecondaryColor),
-                ),
-                const SizedBox(height: 32),
-                if (_isSignup) ...[
-                  TextFormField(
-                    controller: _firstNameController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'First name',
-                      prefixIcon: Icon(Icons.person_outline),
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Enter your first name' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _lastNameController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Last name (optional)',
-                      prefixIcon: Icon(Icons.badge_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Enter your email' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline),
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Enter your password';
-                    if (_isSignup && v.length < 4) return 'Use at least 4 characters';
-                    return null;
-                  },
-                  onFieldSubmitted: (_) => _submit(),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: authState.isLoading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: authState.isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          _isSignup ? 'Create account' : 'Sign in',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: authState.isLoading
-                      ? null
-                      : () => setState(() => _isSignup = !_isSignup),
-                  child: Text(
-                    _isSignup
-                        ? 'Already have an account? Sign in'
-                        : 'New here? Create an account',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: authState.isLoading ? null : _useDemo,
-                  child: const Text('Try seeded demo (Jaymin timeline)'),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.shade100),
-                  ),
-                  child: const Text(
-                    'After signup: upload your lab PDF or paste markers from MyChart / Labcorp / your portal. '
-                    'We store your results and build your Mon–Sun plan in about a minute. '
-                    'Track biometrics daily — next week’s plan releases every Friday.',
-                    style: TextStyle(fontSize: 13, height: 1.4),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Wellness education only — not a medical device. '
-                  'Always consult your healthcare provider for clinical decisions.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: AppTheme.textSecondaryColor),
-                ),
-              ],
+      backgroundColor: AppTheme.backgroundColor,
+      body: Stack(
+        children: [
+          Positioned(
+            top: -80,
+            right: -60,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.primaryColor.withValues(alpha: 0.08),
+              ),
             ),
           ),
-        ),
+          Positioned(
+            bottom: -40,
+            left: -40,
+            child: Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.accentColor.withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: size.width > 560 ? 440 : 560),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 12),
+                        Center(
+                          child: Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              gradient: const LinearGradient(
+                                colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.primaryColor.withValues(alpha: 0.28),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.eco_rounded, color: Colors.white, size: 36),
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        const Text(
+                          'NutriAI',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 34,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _isSignup
+                              ? 'Create your account — tell us what you want to change, then we’ll build your plan.'
+                              : 'Lab-aware nutrition coaching that feels as polished as the best consumer apps.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.45,
+                            color: AppTheme.textSecondaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: AppTheme.borderSubtle),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 24,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              if (_isSignup) ...[
+                                TextFormField(
+                                  controller: _firstNameController,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: const InputDecoration(
+                                    labelText: 'First name',
+                                    prefixIcon: Icon(Icons.person_outline),
+                                  ),
+                                  validator: (v) =>
+                                      (v == null || v.trim().isEmpty) ? 'Enter your first name' : null,
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _lastNameController,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Last name (optional)',
+                                    prefixIcon: Icon(Icons.badge_outlined),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                              TextFormField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                decoration: const InputDecoration(
+                                  labelText: 'Email',
+                                  prefixIcon: Icon(Icons.email_outlined),
+                                ),
+                                validator: (v) =>
+                                    (v == null || v.isEmpty) ? 'Enter your email' : null,
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: _obscure,
+                                decoration: InputDecoration(
+                                  labelText: 'Password',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  suffixIcon: IconButton(
+                                    onPressed: () => setState(() => _obscure = !_obscure),
+                                    icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                                  ),
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.isEmpty) return 'Enter your password';
+                                  if (_isSignup && v.length < 4) return 'Use at least 4 characters';
+                                  return null;
+                                },
+                                onFieldSubmitted: (_) => _submit(),
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton(
+                                  onPressed: authState.isLoading ? null : _submit,
+                                  child: authState.isLoading
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Text(_isSignup ? 'Continue' : 'Sign in'),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: authState.isLoading
+                                    ? null
+                                    : () => setState(() => _isSignup = !_isSignup),
+                                child: Text(
+                                  _isSignup
+                                      ? 'Already have an account? Sign in'
+                                      : 'New here? Create an account',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          onPressed: authState.isLoading ? null : _useDemo,
+                          icon: const Icon(Icons.play_circle_outline),
+                          label: const Text('Try seeded demo account'),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Wellness education only — not a medical device. '
+                          'Always consult your healthcare provider for clinical decisions.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11.5, height: 1.4, color: AppTheme.textSecondaryColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

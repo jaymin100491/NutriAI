@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/onboarding_prefs.dart';
+import '../../providers/auth_provider.dart';
 import '../admin/admin_console_screen.dart';
 import '../admin/sample_lab_order_screen.dart';
+import '../auth/login_screen.dart';
 import '../diet_plan/diet_plan_history_screen.dart';
 import '../goals/goals_screen.dart';
 import '../lab_results/lab_results_list_screen.dart';
 import '../labs/paste_labs_screen.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../providers/auth_provider.dart';
-import '../auth/login_screen.dart';
+import '../onboarding/intent_onboarding_screen.dart';
 import 'dietary_preferences_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -29,7 +31,16 @@ class ProfileScreen extends ConsumerWidget {
             _buildHeader(user),
             const SizedBox(height: 16),
             _buildSection('Account', [
-              _buildListTile(context, Icons.person, 'Personal Information', () {}),
+              _buildListTile(context, Icons.auto_awesome_outlined, 'What I want to change', () async {
+                await OnboardingPrefs.resetIntent(user?.id);
+                if (!context.mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const IntentOnboardingScreen(forceShow: true),
+                  ),
+                );
+              }),
               _buildListTile(context, Icons.science, 'Lab Results', () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const LabResultsListScreen()));
               }),
