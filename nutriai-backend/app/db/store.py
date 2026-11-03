@@ -35,6 +35,15 @@ def set_user_plan(user_id: int, plan: Dict[str, Any]) -> Dict[str, Any]:
         db.close()
 
 
+def patch_user_plan(user_id: int, plan: Dict[str, Any]) -> Dict[str, Any]:
+    """Update current plan in place (no archive) — used for mid-week remaining-day regen."""
+    db = SessionLocal()
+    try:
+        return repo.update_current_diet_plan(db, user_id, deepcopy(plan))
+    finally:
+        db.close()
+
+
 def get_chat_history(user_id: int) -> List[Dict[str, Any]]:
     db = SessionLocal()
     try:

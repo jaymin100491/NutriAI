@@ -18,6 +18,7 @@ from app.db.store import (
     get_user_plan,
     get_user_preferences,
     next_plan_id,
+    patch_user_plan,
     set_user_plan,
 )
 from app.db.database import SessionLocal
@@ -98,6 +99,44 @@ def _biometric_adjustments(user_id: int) -> Dict[str, Any]:
     return {"calorie_delta": calorie_delta, "extra_tags": list(set(tags)), "notes": notes}
 
 
+def _recipe_matches_diet(recipe: Dict[str, Any], dietary: str) -> bool:
+    """Hard diet gate — never serve chicken/fish/etc. for vegetarian users."""
+    dietary = (dietary or "omnivore").lower()
+    if dietary in ("", "omnivore"):
+        return True
+
+    name = (recipe.get("name") or "").lower()
+    protein = (recipe.get("primary_protein") or "").lower()
+    tags = {t.lower() for t in (recipe.get("dietary_tags") or [])}
+    ingredients = " ".join(
+        str((i or {}).get("item") or "").lower() for i in (recipe.get("ingredients") or [])
+    )
+    haystack = f"{name} {protein} {ingredients}"
+
+    meat = [
+        "chicken", "turkey", "beef", "steak", "shrimp", "salmon", "cod", "fish",
+        "pork", "lamb", "bacon", "meat", "seafood", "prawn", "tuna", "anchovy",
+    ]
+    land = ["chicken", "turkey", "beef", "steak", "pork", "lamb", "bacon", "meat"]
+    animal = meat + [
+        "yogurt", "paneer", "feta", "cheese", "egg", "omelette", "cottage",
+        "whey", "raita", "honey", "butter", "ghee", "milk",
+    ]
+
+    if dietary == "vegetarian":
+        if tags & {"vegetarian", "vegan"}:
+            # Still block if name clearly contains meat (bad tagging)
+            return not any(m in haystack for m in meat)
+        return not any(m in haystack for m in meat)
+    if dietary == "pescatarian":
+        return not any(m in haystack for m in land)
+    if dietary == "vegan":
+        if "vegan" in tags:
+            return True
+        return not any(a in haystack for a in animal)
+    return True
+
+
 def _filter_professional(
     meal_type: str,
     dietary: str,
@@ -109,28 +148,15 @@ def _filter_professional(
     dislikes = [d.lower() for d in dislikes if d]
     catalog = build_professional_catalog()
 
-    meat = ["chicken", "turkey", "beef", "steak", "shrimp", "salmon", "cod", "fish"]
-    land = ["chicken", "turkey", "beef", "steak"]
-    animal = meat + ["yogurt", "paneer", "feta", "cheese", "egg", "omelette", "cottage", "whey", "raita", "honey"]
-
     scored: List[Tuple[int, Dict[str, Any]]] = []
     for r in catalog:
         if meal_type not in r.get("meal_type", []):
             continue
+        if not _recipe_matches_diet(r, dietary):
+            continue
         name = (r.get("name") or "").lower()
         if any(d in name for d in dislikes):
             continue
-        tags = set(t.lower() for t in r.get("dietary_tags", []))
-        if dietary == "vegetarian" and any(m in name for m in meat):
-            continue
-        if dietary == "pescatarian" and any(m in name for m in land):
-            continue
-        if dietary == "vegan" and (
-            any(a in name for a in animal) and "vegan" not in tags
-        ):
-            # allow explicitly vegan-tagged
-            if "vegan" not in tags:
-                continue
 
         score = len(set(goal_tags) & set(r.get("health_tags", [])))
         if cuisine_prefs and r.get("cuisine_type") in cuisine_prefs:
@@ -138,7 +164,14 @@ def _filter_professional(
         scored.append((score, r))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [r for _, r in scored] or [r for r in catalog if meal_type in r.get("meal_type", [])]
+    ranked = [r for _, r in scored]
+    if ranked:
+        return ranked
+    # Strict fallback — same diet only, never open the full (meat) catalog
+    return [
+        r for r in catalog
+        if meal_type in r.get("meal_type", []) and _recipe_matches_diet(r, dietary)
+    ]
 
 
 def generate_weekly_plan(
@@ -308,6 +341,144 @@ def ensure_current_week_plan(user: Dict[str, Any]) -> Dict[str, Any]:
     if existing and existing.get("week_start") == monday.isoformat() and existing.get("meals"):
         return existing
     return generate_weekly_plan(user, for_next_week=False)
+
+
+def regenerate_remaining_days(
+    user: Dict[str, Any],
+    *,
+    effective_after: Optional[date] = None,
+) -> Dict[str, Any]:
+    """
+    Preference change mid-week: keep today + past meals, rebuild only future days.
+    Does not archive the current week — patches the current plan in place.
+    """
+    user_id = int(user["id"])
+    today = effective_after or date.today()
+    monday, sunday = week_bounds(today)
+    existing = get_user_plan(user_id)
+
+    if not existing or existing.get("week_start") != monday.isoformat():
+        return generate_weekly_plan(user, for_next_week=False, allow_ai=True)
+
+    prefs = get_user_preferences(user_id)
+    dietary = prefs.get("dietary_preference") or user.get("dietary_preference") or "omnivore"
+    dislikes = prefs.get("dislikes") or []
+    cuisine_prefs = normalize_cuisine_list(
+        prefs.get("cuisine_preferences")
+        or user.get("cuisine_preferences")
+        or ["Indian", "Mediterranean", "Mexican", "Thai", "Japanese", "American"]
+    )
+    goals = get_goals_for_user(user_id, user) or []
+    primary = (goals[0] if goals else {}).get("goal_type") or "increase_energy"
+    target_calories, macro_targets, goal_tags = _nutrition_for_goal(primary, goals)
+    rng = random.Random(hash(f"{user_id}|remaining|{today.isoformat()}|{dietary}") & 0xFFFFFFFF)
+
+    keep: List[Dict[str, Any]] = []
+    for m in existing.get("meals") or []:
+        try:
+            md = date.fromisoformat(str(m.get("date") or "")[:10])
+        except ValueError:
+            continue
+        if md <= today:
+            keep.append(deepcopy(m))
+
+    future: List[Dict[str, Any]] = []
+    recent_names: List[str] = [str((m.get("recipe") or {}).get("name") or "") for m in keep][-8:]
+
+    # Prefer AI for remaining days when available
+    if ai_meal_generation_enabled():
+        weekdays = []
+        d0 = monday
+        while d0 <= sunday:
+            weekdays.append(d0.strftime("%A"))
+            d0 += timedelta(days=1)
+        goal_labels = [
+            next((g.get("label") for g in goals if g.get("goal_type") == gt), gt)
+            for gt in [g.get("goal_type") for g in goals if g.get("goal_type")]
+        ] or [primary]
+        ai = generate_ai_week_meals(
+            dietary=dietary,
+            cuisine_prefs=cuisine_prefs,
+            dislikes=dislikes,
+            goal_labels=goal_labels,
+            target_calories=int(existing.get("target_calories") or target_calories),
+            week_start=monday.isoformat(),
+            weekdays=weekdays,
+            lab_summary=None,
+            biometric_notes=None,
+        )
+        if ai and ai.get("meals"):
+            for m in ai["meals"]:
+                try:
+                    md = date.fromisoformat(str(m.get("date") or "")[:10])
+                except ValueError:
+                    # AI may only set day index
+                    day_num = int(m.get("day") or 0)
+                    if day_num < 1:
+                        continue
+                    md = monday + timedelta(days=day_num - 1)
+                    m = {**m, "date": md.isoformat(), "weekday": md.strftime("%A")}
+                if md <= today:
+                    continue
+                recipe = m.get("recipe") or {}
+                if recipe and not _recipe_matches_diet(recipe, dietary):
+                    continue
+                future.append(deepcopy(m))
+
+    have = {(m.get("date"), m.get("meal_type")) for m in future}
+    d = today + timedelta(days=1)
+    while d <= sunday:
+        for meal_type in MEAL_TYPES:
+            key = (d.isoformat(), meal_type)
+            if key in have:
+                continue
+            pool = _filter_professional(meal_type, dietary, dislikes, goal_tags, cuisine_prefs)
+            pool = [p for p in pool if p.get("name") not in recent_names[-8:]] or pool
+            if not pool:
+                continue
+            recipe = deepcopy(rng.choice(pool[: max(3, min(10, len(pool)))]))
+            recent_names.append(recipe.get("name") or "")
+            future.append(
+                {
+                    "day": (d - monday).days + 1,
+                    "weekday": d.strftime("%A"),
+                    "date": d.isoformat(),
+                    "meal_type": meal_type,
+                    "recipe_id": recipe["id"],
+                    "recipe": recipe,
+                    "cuisine_focus": recipe.get("cuisine_type"),
+                    "preference_updated": True,
+                }
+            )
+            have.add(key)
+        d += timedelta(days=1)
+
+    merged_meals = sorted(
+        keep + future,
+        key=lambda m: (str(m.get("date") or ""), str(m.get("meal_type") or "")),
+    )
+    plan = deepcopy(existing)
+    plan["meals"] = merged_meals
+    plan["dietary_preference"] = dietary
+    plan["cuisine_rotation"] = cuisine_prefs
+    plan["target_calories"] = int(existing.get("target_calories") or target_calories)
+    plan["macro_targets"] = existing.get("macro_targets") or macro_targets
+    plan["shopping_list"] = _build_shopping_list(merged_meals)
+    plan["preference_patch"] = {
+        "effective_after": today.isoformat(),
+        "kept_through": today.isoformat(),
+        "regenerated_from": (today + timedelta(days=1)).isoformat() if today < sunday else None,
+        "regenerated_to": sunday.isoformat() if today < sunday else None,
+        "remaining_meals": len(future),
+        "kept_meals": len(keep),
+    }
+    plan["ai_rationale"] = (
+        f"Preferences updated on {today.isoformat()}. "
+        f"Meals through today were kept unchanged; "
+        f"{len(future)} remaining meals regenerated for {dietary}."
+    )
+    plan["customization_count"] = int(plan.get("customization_count") or 0) + 1
+    return patch_user_plan(user_id, plan)
 
 
 def friday_release_next_week(user: Dict[str, Any]) -> Dict[str, Any]:

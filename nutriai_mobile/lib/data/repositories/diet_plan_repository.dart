@@ -84,8 +84,20 @@ class DietPlanRepository {
       final response = await _dioClient.dio.get(
         '${ApiConstants.apiV1}/recipes/$recipeId',
       );
-      return Recipe.fromJson(response.data);
+      final data = response.data;
+      return Recipe.fromJson(
+        data is Map<String, dynamic> ? data : Map<String, dynamic>.from(data as Map),
+      );
     } catch (e) {
+      // Fall back to recipe embedded in the current plan (AI / professional ids).
+      try {
+        final plan = await getCurrentDietPlan();
+        for (final meal in plan.meals) {
+          if (meal.recipeId == recipeId && meal.recipe != null) {
+            return meal.recipe!;
+          }
+        }
+      } catch (_) {}
       throw Exception('Failed to fetch recipe: $e');
     }
   }

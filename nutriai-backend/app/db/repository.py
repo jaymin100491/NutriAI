@@ -142,6 +142,22 @@ def save_diet_plan(db: Session, user_id: int, plan: Dict[str, Any]) -> Dict[str,
     return plan
 
 
+def update_current_diet_plan(db: Session, user_id: int, plan: Dict[str, Any]) -> Dict[str, Any]:
+    """Overwrite the current plan payload without archiving (mid-week preference edits)."""
+    row = (
+        db.query(DietPlanRecord)
+        .filter(DietPlanRecord.user_id == user_id, DietPlanRecord.is_current.is_(True))
+        .order_by(DietPlanRecord.created_at.desc())
+        .first()
+    )
+    if row:
+        row.payload = plan
+        db.commit()
+        db.refresh(row)
+        return plan
+    return save_diet_plan(db, user_id, plan)
+
+
 def get_current_diet_plan(db: Session, user_id: int) -> Optional[Dict[str, Any]]:
     row = (
         db.query(DietPlanRecord)

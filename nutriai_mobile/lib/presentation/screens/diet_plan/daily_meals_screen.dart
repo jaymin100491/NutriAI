@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../data/models/diet_plan_model.dart';
 import '../../providers/diet_plan_provider.dart';
 import 'recipe_detail_screen.dart';
 
@@ -141,7 +142,10 @@ class DailyMealsScreen extends ConsumerWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => RecipeDetailScreen(recipeId: meal.recipeId),
+                    builder: (_) => RecipeDetailScreen(
+                      recipeId: meal.recipeId,
+                      initialRecipe: recipe is Recipe ? recipe : null,
+                    ),
                   ),
                 );
               }

@@ -14,11 +14,14 @@ from app.services.diet_plan_engine import (
     apply_plan_modifications,
     suggest_replacement_meal,
 )
+from datetime import datetime, timezone
+
 from app.services.weekly_plan_service import (
     ensure_current_week_plan,
     friday_release_next_week,
     schedule_status,
     generate_weekly_plan,
+    regenerate_remaining_days,
 )
 from app.services.lab_result_service import get_lab_results_for_user
 
@@ -56,6 +59,7 @@ async def get_preferences(current_user: dict = Depends(get_current_user)):
         "allergies": prefs.get("allergies", current_user.get("allergies", [])),
         "favorites": prefs.get("favorites", []),
         "substitutions": prefs.get("substitutions", {}),
+        "preference_history": prefs.get("preference_history", []),
     }
 
 
@@ -199,6 +203,13 @@ async def update_preferences(
 ):
     user_id = int(current_user["id"])
     prefs = get_user_preferences(user_id)
+    before = {
+        "dietary_preference": prefs.get("dietary_preference", "omnivore"),
+        "dislikes": list(prefs.get("dislikes") or []),
+        "cuisine_preferences": list(prefs.get("cuisine_preferences") or []),
+        "allergies": list(prefs.get("allergies") or []),
+    }
+
     if request.dietary_preference is not None:
         prefs["dietary_preference"] = request.dietary_preference
     if request.dislikes is not None:
@@ -209,18 +220,45 @@ async def update_preferences(
         prefs["cuisine_preferences"] = normalize_cuisine_list(request.cuisine_preferences)
     if request.allergies is not None:
         prefs["allergies"] = request.allergies
+
+    after = {
+        "dietary_preference": prefs.get("dietary_preference", "omnivore"),
+        "dislikes": list(prefs.get("dislikes") or []),
+        "cuisine_preferences": list(prefs.get("cuisine_preferences") or []),
+        "allergies": list(prefs.get("allergies") or []),
+    }
+    changed = before != after
+    history = list(prefs.get("preference_history") or [])
+    if changed:
+        history.append(
+            {
+                "changed_at": datetime.now(timezone.utc).isoformat(),
+                "from": before,
+                "to": after,
+                "scope": "remaining_days" if request.regenerate_plan else "prefs_only",
+            }
+        )
+        # Keep last 50 preference changes
+        prefs["preference_history"] = history[-50:]
+
     set_user_preferences(user_id, prefs)
 
     plan = None
-    if request.regenerate_plan:
+    patch_meta = None
+    if request.regenerate_plan and changed:
         user = {
             **current_user,
             "dietary_preference": prefs.get("dietary_preference", "omnivore"),
             "cuisine_preferences": prefs.get("cuisine_preferences", []),
             "allergies": prefs.get("allergies", []),
         }
-        # Live weekly path — uses AI chef when API keys are configured
-        plan = generate_weekly_plan(user, for_next_week=False, allow_ai=True)
+        # Mid-week safe: keep today + past, only rebuild remaining days
+        plan = regenerate_remaining_days(user)
+        patch_meta = (plan or {}).get("preference_patch")
+        if history:
+            history[-1]["plan_patch"] = patch_meta
+            prefs["preference_history"] = history[-50:]
+            set_user_preferences(user_id, prefs)
 
     return {
         "preferences": {
@@ -230,8 +268,11 @@ async def update_preferences(
             "allergies": prefs.get("allergies", []),
             "favorites": prefs.get("favorites", []),
             "substitutions": prefs.get("substitutions", {}),
+            "preference_history": prefs.get("preference_history", []),
         },
         "plan_regenerated": plan is not None,
+        "remaining_days_only": bool(patch_meta),
+        "preference_patch": patch_meta,
         "plan": plan,
     }
 

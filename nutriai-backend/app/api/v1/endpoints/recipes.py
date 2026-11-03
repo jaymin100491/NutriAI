@@ -73,8 +73,20 @@ async def get_recipe_detail(
     recipe_id: int,
     current_user: dict = Depends(get_current_user),
 ):
-    """Get detailed recipe information."""
+    """Get detailed recipe information (catalog, professional, or current plan embed)."""
     recipe = get_recipe_by_id(recipe_id)
+    if not recipe:
+        # Fall back to recipe embedded in the user's current diet plan (AI / plan-only ids)
+        try:
+            from app.db.store import get_user_plan
+
+            plan = get_user_plan(int(current_user["id"])) or {}
+            for meal in plan.get("meals") or []:
+                if int(meal.get("recipe_id") or 0) == recipe_id and meal.get("recipe"):
+                    recipe = meal["recipe"]
+                    break
+        except Exception:
+            recipe = None
     if not recipe:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
