@@ -49,4 +49,10 @@ class ApiConstants {
 
   static const int connectionTimeout = 45000;
   static const int receiveTimeout = 45000;
+
+  /// Free Render cold starts can take 30–90s; auth uses these longer budgets.
+  static const int authConnectionTimeout = 120000;
+  static const int authReceiveTimeout = 120000;
+  static const int authMaxAttempts = 5;
+  static const int authRetryDelayMs = 6000;
 }

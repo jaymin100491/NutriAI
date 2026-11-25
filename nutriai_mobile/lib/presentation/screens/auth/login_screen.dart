@@ -278,6 +278,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       : Text(_isSignup ? 'Continue' : 'Sign in'),
                                 ),
                               ),
+                              if (authState.isLoading) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  authState.statusMessage ??
+                                      'Connecting to NutriAI…',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: AppTheme.textSecondaryColor,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 8),
                               TextButton(
                                 onPressed: authState.isLoading

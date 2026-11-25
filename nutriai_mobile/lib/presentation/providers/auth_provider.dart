@@ -16,6 +16,8 @@ class AuthState {
   final UserData? user;
   final String? error;
   final bool needsLabImport;
+  /// Live status during cold-start retries (e.g. "Waking up server…").
+  final String? statusMessage;
 
   AuthState({
     this.isAuthenticated = false,
@@ -23,6 +25,7 @@ class AuthState {
     this.user,
     this.error,
     this.needsLabImport = false,
+    this.statusMessage,
   });
 
   AuthState copyWith({
@@ -31,6 +34,7 @@ class AuthState {
     UserData? user,
     String? error,
     bool? needsLabImport,
+    Object? statusMessage = _authUnset,
   }) {
     return AuthState(
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
@@ -38,9 +42,14 @@ class AuthState {
       user: user ?? this.user,
       error: error,
       needsLabImport: needsLabImport ?? this.needsLabImport,
+      statusMessage: identical(statusMessage, _authUnset)
+          ? this.statusMessage
+          : statusMessage as String?,
     );
   }
 }
+
+const Object _authUnset = Object();
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _authRepository;
@@ -105,10 +114,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> login(String email, String password) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      statusMessage: 'Connecting…',
+    );
     try {
       final response = await _authRepository.login(
         LoginRequest(email: email, password: password),
+        onStatus: (msg) {
+          state = state.copyWith(isLoading: true, statusMessage: msg);
+        },
       );
       state = state.copyWith(
         isAuthenticated: true,
@@ -116,12 +132,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
         user: response.user,
         needsLabImport: response.needsLabImport,
         error: null,
+        statusMessage: null,
       );
     } catch (e) {
       state = state.copyWith(
         isAuthenticated: false,
         isLoading: false,
-        error: e.toString(),
+        error: e.toString().replaceFirst('Exception: ', ''),
+        statusMessage: null,
       );
     }
   }
@@ -132,7 +150,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String firstName,
     String lastName = '',
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      statusMessage: 'Creating account…',
+    );
     try {
       final response = await _authRepository.signup(
         SignupRequest(
@@ -141,6 +163,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           firstName: firstName,
           lastName: lastName,
         ),
+        onStatus: (msg) {
+          state = state.copyWith(isLoading: true, statusMessage: msg);
+        },
       );
       state = state.copyWith(
         isAuthenticated: true,
@@ -148,12 +173,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
         user: response.user,
         needsLabImport: response.needsLabImport,
         error: null,
+        statusMessage: null,
       );
     } catch (e) {
       state = state.copyWith(
         isAuthenticated: false,
         isLoading: false,
-        error: e.toString(),
+        error: e.toString().replaceFirst('Exception: ', ''),
+        statusMessage: null,
       );
     }
   }
