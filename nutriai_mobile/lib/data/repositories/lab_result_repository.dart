@@ -75,6 +75,7 @@ class LabResultRepository {
     required List<int> bytes,
     required String filename,
     String? testDate,
+    bool generatePlan = true,
   }) async {
     final form = FormData.fromMap({
       'file': MultipartFile.fromBytes(bytes, filename: filename),
@@ -82,8 +83,18 @@ class LabResultRepository {
     });
     final response = await _dioClient.dio.post(
       ApiConstants.labResultsUploadPdf,
+      queryParameters: {'generate_plan': generatePlan},
       data: form,
+      options: Options(
+        sendTimeout: const Duration(milliseconds: ApiConstants.aiPlanConnectionTimeout),
+        receiveTimeout: const Duration(milliseconds: ApiConstants.aiPlanReceiveTimeout),
+      ),
     );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> getPlanJobStatus() async {
+    final response = await _dioClient.dio.get(ApiConstants.labResultsPlanJobStatus);
     return Map<String, dynamic>.from(response.data as Map);
   }
 }

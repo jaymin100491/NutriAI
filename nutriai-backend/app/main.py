@@ -88,10 +88,12 @@ async def startup():
     db = SessionLocal()
     try:
         if settings.DEMO_MODE:
-            from app.db.seed_demo import seed_demo_workspace
+            from app.db.seed_demo import seed_demo_workspace, seed_pitch_demo_user
 
             seed_demo_workspace(db)
             logger.info("Demo workspace seeded (jaymin@nutriai.app)")
+            seed_pitch_demo_user(db)
+            logger.info("Pitch demo user ready (jayminp@nutriai.app) — upload labs at first login")
 
         if settings.DEMO_MODE and settings.SEED_DEMO_COHORT:
             from app.db.seed_cohort import seed_demo_cohort

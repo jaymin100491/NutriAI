@@ -19,6 +19,7 @@ Do **not** say: *“clinical study”*, *“IRB research”*, or *“we proved L
 |------|--------|
 | Admin | `admin@nutriai.app` / `admin123` |
 | Seeded hero demo | `jaymin@nutriai.app` / `demo` |
+| Live pitch (empty labs → PDF upload) | `jayminp@nutriai.app` / `demo` |
 | Any cohort persona | `{slug}@cohort.nutriai.app` / `demo` |
 
 Examples:
@@ -67,9 +68,9 @@ Cohort + most users use the offline catalog. Live OpenAI meals are limited to an
 OPENAI_API_KEY=sk-...
 # or ANTHROPIC_API_KEY=...
 AI_MEAL_GENERATION=true
-AI_MEAL_USER_EMAILS=jaymin@nutriai.app
+AI_MEAL_USER_EMAILS=jaymin@nutriai.app,jayminp@nutriai.app
 ```
 
 Set `AI_MEAL_USER_EMAILS=` (empty) to allow every user, or add more emails comma-separated.
 
-For the allowlisted user: Profile → Dietary Preferences → e.g. Vegetarian + Mexican → Save & regenerate (or admin **Regenerate this week**).
+**Pitch demo (`jayminp@nutriai.app`):** sign in → upload Labcorp Patient Report PDF(s) from your Results folder → markers are stored → OpenAI Mon–Sun plan generates from the latest panel. These PDFs are text-based (not OCR scans).

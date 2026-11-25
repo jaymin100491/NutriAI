@@ -20,6 +20,10 @@ from app.services.diet_plan_engine import generate_diet_plan
 DEMO_EMAIL = "jaymin@nutriai.app"
 DEMO_PASSWORD_HINT = "demo"
 
+# Live pitch account — empty labs; upload PDFs at first login during demo
+PITCH_EMAIL = "jayminp@nutriai.app"
+PITCH_PASSWORD_HINT = "demo"
+
 
 def _marker(
     name: str,
@@ -441,3 +445,44 @@ def seed_biometric_history(db: Session, user_id: int) -> None:
     # Dedupe by date
     by_date = {e["date"]: e for e in entries}
     repo.replace_tracking_entries(db, user_id, list(by_date.values()))
+
+
+def seed_pitch_demo_user(db: Session) -> User:
+    """
+    Empty-lab pitch account for live PDF upload demos.
+    Login: jayminp@nutriai.app / demo — no pre-seeded labs or plans.
+    """
+    from app.core.security import get_password_hash
+
+    user = repo.get_user_by_email(db, PITCH_EMAIL)
+    if user is None:
+        user = repo.create_password_user(
+            db,
+            email=PITCH_EMAIL,
+            password_hash=get_password_hash(PITCH_PASSWORD_HINT),
+            first_name="Jaymin",
+            last_name="Patel",
+        )
+    else:
+        user.password_hash = get_password_hash(PITCH_PASSWORD_HINT)
+        user.first_name = user.first_name or "Jaymin"
+        user.last_name = user.last_name or "Patel"
+        user.is_active = True
+        user.subscription_tier = "premium"
+        db.commit()
+        db.refresh(user)
+
+    # Ensure blank slate for first-login PDF import (do not wipe if labs already uploaded)
+    existing_labs = repo.get_lab_results(db, user.id)
+    if not existing_labs:
+        prefs = get_user_preferences(user.id)
+        prefs.update(
+            {
+                "dislikes": [],
+                "cuisine_preferences": ["Indian", "Mediterranean", "Mexican"],
+                "dietary_preference": "omnivore",
+                "favorites": [],
+            }
+        )
+        set_user_preferences(user.id, prefs)
+    return user

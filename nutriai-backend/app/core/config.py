@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     AI_MEAL_GENERATION: bool = True  # prefer live AI chef; catalog is fallback
     # Comma-separated emails allowed to use live AI meals. Others use catalog.
     # Empty string = all users. Default keeps demo cost on the hero account only.
-    AI_MEAL_USER_EMAILS: str = "jaymin@nutriai.app"
+    AI_MEAL_USER_EMAILS: str = "jaymin@nutriai.app,jayminp@nutriai.app"
 
     # Legacy Labcorp/Okta fields kept optional for old code paths — unused in open-market demo
     LABCORP_PORTAL_API_URL: str = ""

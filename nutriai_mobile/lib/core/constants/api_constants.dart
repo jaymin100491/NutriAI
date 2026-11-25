@@ -20,6 +20,7 @@ class ApiConstants {
   static const String labResultsImportFromPortal = '$apiV1/lab-results/import-from-portal';
   static const String labResultsPaste = '$apiV1/lab-results/paste';
   static const String labResultsUploadPdf = '$apiV1/lab-results/upload-pdf';
+  static const String labResultsPlanJobStatus = '$apiV1/lab-results/plan-job-status';
   static const String latestLabResult = '$apiV1/lab-results/latest';
   static const String sampleLabOrder = '$apiV1/lab-results/sample-lab-order';
 
