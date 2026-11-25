@@ -55,4 +55,8 @@ class ApiConstants {
   static const int authReceiveTimeout = 120000;
   static const int authMaxAttempts = 5;
   static const int authRetryDelayMs = 6000;
+
+  /// OpenAI week generation on free Render often exceeds 45s.
+  static const int aiPlanConnectionTimeout = 180000;
+  static const int aiPlanReceiveTimeout = 180000;
 }

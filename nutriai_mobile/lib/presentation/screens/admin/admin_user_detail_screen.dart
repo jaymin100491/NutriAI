@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,6 +72,10 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen>
       await dio.post(
         '${ApiConstants.adminUsers}/${widget.userId}/generate-week',
         queryParameters: {'next_week': nextWeek},
+        options: Options(
+          sendTimeout: const Duration(milliseconds: ApiConstants.aiPlanConnectionTimeout),
+          receiveTimeout: const Duration(milliseconds: ApiConstants.aiPlanReceiveTimeout),
+        ),
       );
       await _load();
       if (!mounted) return;
@@ -81,8 +86,19 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen>
       );
     } catch (e) {
       if (!mounted) return;
+      final timedOut = e is DioException &&
+          (e.type == DioExceptionType.receiveTimeout ||
+              e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.sendTimeout);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Action failed: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(
+            timedOut
+                ? 'Still generating (OpenAI can take 1–3 min on free Render). Wait, then refresh this user.'
+                : 'Action failed: $e',
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _acting = false);

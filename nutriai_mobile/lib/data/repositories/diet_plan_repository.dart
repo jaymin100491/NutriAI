@@ -1,6 +1,13 @@
+import 'package:dio/dio.dart';
+
 import '../../core/constants/api_constants.dart';
 import '../../core/network/dio_client.dart';
 import '../models/diet_plan_model.dart';
+
+Options get _aiPlanOptions => Options(
+      sendTimeout: const Duration(milliseconds: ApiConstants.aiPlanConnectionTimeout),
+      receiveTimeout: const Duration(milliseconds: ApiConstants.aiPlanReceiveTimeout),
+    );
 
 class DietPlanHistoryResponse {
   final List<Map<String, dynamic>> plans;
@@ -52,7 +59,7 @@ class DietPlanRepository {
 
   Future<DietPlan> generateWeeklyPlan({bool nextWeek = false}) async {
     final path = nextWeek ? ApiConstants.dietPlanWeeklyNext : ApiConstants.dietPlanWeeklyGenerate;
-    final response = await _dioClient.dio.post(path);
+    final response = await _dioClient.dio.post(path, options: _aiPlanOptions);
     return DietPlan.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
 
@@ -144,6 +151,7 @@ class DietPlanRepository {
         'dislikes': dislikes,
         'regenerate_plan': regeneratePlan,
       },
+      options: regeneratePlan ? _aiPlanOptions : null,
     );
     final data = response.data as Map<String, dynamic>;
     if (data['plan'] != null) {
