@@ -59,14 +59,17 @@ curl -X POST "http://127.0.0.1:8000/api/v1/admin/cohort/seed?force=true" \
 
 Seeding 55 users with history can take **1–3 minutes** on first boot. Keep `SEED_DEMO_COHORT=true` for the live demo host; set `false` if you want a clean production tenant later.
 
-## Live AI meal generation (new users during demo)
+## Live AI meal generation (cost-controlled)
 
-Cohort history uses the offline catalog for speed. **New / live users** regenerate plans with the **live AI chef** when you set:
+Cohort + most users use the offline catalog. Live OpenAI meals are limited to an allowlist (default hero account only):
 
 ```bash
 OPENAI_API_KEY=sk-...
 # or ANTHROPIC_API_KEY=...
 AI_MEAL_GENERATION=true
+AI_MEAL_USER_EMAILS=jaymin@nutriai.app
 ```
 
-Then Profile → Dietary Preferences → e.g. Vegetarian + Mexican (or any typed cuisine) → Save & regenerate. Plans are not limited to a fixed menu.
+Set `AI_MEAL_USER_EMAILS=` (empty) to allow every user, or add more emails comma-separated.
+
+For the allowlisted user: Profile → Dietary Preferences → e.g. Vegetarian + Mexican → Save & regenerate (or admin **Regenerate this week**).

@@ -27,7 +27,7 @@ from app.services.professional_meals import build_professional_catalog, PROFESSI
 from app.services.goal_service import get_goals_for_user, GOAL_DEFINITIONS
 from app.services.diet_plan_engine import _nutrition_for_goal, _build_shopping_list, MEAL_TYPES
 from app.services.ai_meal_generator import (
-    ai_meal_generation_enabled,
+    ai_meal_generation_enabled_for,
     generate_ai_week_meals,
     normalize_cuisine_list,
 )
@@ -184,10 +184,11 @@ def generate_weekly_plan(
     """
     Generate a Mon–Sun professional weekly plan and archive the previous current plan.
 
-    Live product path: when AI keys are configured, meals are generated on the fly
-    for any diet + cuisine combination. Catalog is fallback (and used for bulk demo seeding).
+    Live product path: allowlisted users (default jaymin@nutriai.app) get on-the-fly
+    AI meals when keys are set. Everyone else uses the professional catalog.
     """
     user_id = int(user["id"])
+    use_ai = allow_ai and ai_meal_generation_enabled_for(user)
     today = date.today()
     if for_next_week:
         start, end = next_week_bounds(today)
@@ -230,7 +231,7 @@ def generate_weekly_plan(
         next((g.get("label") for g in goals if g.get("goal_type") == gt), gt) for gt in goal_types
     ]
 
-    if allow_ai and ai_meal_generation_enabled():
+    if use_ai:
         ai = generate_ai_week_meals(
             dietary=dietary,
             cuisine_prefs=cuisine_prefs,
@@ -385,8 +386,8 @@ def regenerate_remaining_days(
     future: List[Dict[str, Any]] = []
     recent_names: List[str] = [str((m.get("recipe") or {}).get("name") or "") for m in keep][-8:]
 
-    # Prefer AI for remaining days when available
-    if ai_meal_generation_enabled():
+    # Prefer AI for remaining days only for allowlisted users (e.g. jaymin@nutriai.app)
+    if ai_meal_generation_enabled_for(user):
         weekdays = []
         d0 = monday
         while d0 <= sunday:
@@ -486,12 +487,13 @@ def friday_release_next_week(user: Dict[str, Any]) -> Dict[str, Any]:
     return generate_weekly_plan(user, for_next_week=True)
 
 
-def schedule_status(user_id: int) -> Dict[str, Any]:
+def schedule_status(user_id: int, user: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     today = date.today()
     monday, sunday = week_bounds(today)
     n_mon, n_sun = next_week_bounds(today)
     existing = get_user_plan(user_id)
-    ai_live = ai_meal_generation_enabled()
+    identity = user or {"id": user_id}
+    ai_live = ai_meal_generation_enabled_for(identity)
     return {
         "today": today.isoformat(),
         "weekday": today.strftime("%A"),

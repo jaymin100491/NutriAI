@@ -64,6 +64,30 @@ def ai_meal_generation_enabled() -> bool:
     return bool(settings.OPENAI_API_KEY or settings.ANTHROPIC_API_KEY)
 
 
+def ai_meal_user_allowlist() -> List[str]:
+    raw = (getattr(settings, "AI_MEAL_USER_EMAILS", None) or "").strip()
+    if not raw:
+        return []
+    return [p.strip().lower() for p in raw.replace("\n", ",").split(",") if p.strip()]
+
+
+def ai_meal_generation_enabled_for(user: Optional[Dict[str, Any]] = None) -> bool:
+    """
+    Live AI only when keys are configured AND the user is on the allowlist.
+    Default allowlist is jaymin@nutriai.app so cohort/other users stay on catalog.
+    Empty AI_MEAL_USER_EMAILS means all authenticated users may use AI.
+    """
+    if not ai_meal_generation_enabled():
+        return False
+    allowlist = ai_meal_user_allowlist()
+    if not allowlist:
+        return True
+    if not user:
+        return False
+    email = str(user.get("email") or "").strip().lower()
+    return email in allowlist
+
+
 def normalize_cuisine_list(cuisines: Optional[List[str]]) -> List[str]:
     """Fix common typos and title-case cuisine names."""
     if not cuisines:

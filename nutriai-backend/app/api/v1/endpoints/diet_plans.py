@@ -72,7 +72,7 @@ async def get_current_diet_plan(current_user: dict = Depends(get_current_user)):
 @router.get("/schedule")
 async def get_plan_schedule(current_user: dict = Depends(get_current_user)):
     """Weekly cadence: Mon–Sun plans; next week released on Friday."""
-    return schedule_status(int(current_user["id"]))
+    return schedule_status(int(current_user["id"]), current_user)
 
 
 @router.post("/weekly/generate", response_model=DietPlanResponse)
