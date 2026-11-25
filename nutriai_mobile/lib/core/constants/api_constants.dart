@@ -47,12 +47,14 @@ class ApiConstants {
   static const String chat = '$apiV1/chat';
   static const String chatHistory = '$apiV1/chat/history';
 
-  static const int connectionTimeout = 45000;
-  static const int receiveTimeout = 45000;
+  /// Flutter web often ignores per-request Dio timeouts; keep the default
+  /// high enough for OpenAI week generation on free Render (can be 1–3 min).
+  static const int connectionTimeout = 180000;
+  static const int receiveTimeout = 180000;
 
   /// Free Render cold starts can take 30–90s; auth uses these longer budgets.
-  static const int authConnectionTimeout = 120000;
-  static const int authReceiveTimeout = 120000;
+  static const int authConnectionTimeout = 180000;
+  static const int authReceiveTimeout = 180000;
   static const int authMaxAttempts = 5;
   static const int authRetryDelayMs = 6000;
 

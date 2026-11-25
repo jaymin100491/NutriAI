@@ -3,6 +3,9 @@ Admin panel APIs — manage all users, labs, plans, biometrics.
 """
 from __future__ import annotations
 
+import logging
+import threading
+import time
 from datetime import date, datetime, timedelta
 from statistics import mean
 from typing import Any, Dict, List, Optional
@@ -18,6 +21,37 @@ from app.db.models import User, DietPlanRecord, LabResultRecord, TrackingRecord,
 from app.services.weekly_plan_service import friday_release_next_week, generate_weekly_plan
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# In-memory admin generate-week jobs (OpenAI can take 1–3 min; don't block HTTP).
+_generate_jobs: Dict[str, Dict[str, Any]] = {}
+_generate_lock = threading.Lock()
+
+
+def _generate_job_key(user_id: int, next_week: bool) -> str:
+    return f"{user_id}:{'next' if next_week else 'current'}"
+
+
+def _run_generate_week(job_key: str, payload: Dict[str, Any], next_week: bool) -> None:
+    try:
+        plan = friday_release_next_week(payload) if next_week else generate_weekly_plan(payload)
+        with _generate_lock:
+            _generate_jobs[job_key] = {
+                "status": "done",
+                "finished_at": time.time(),
+                "plan_id": (plan or {}).get("id"),
+                "generation_source": (plan or {}).get("generation_source"),
+                "message": "Weekly plan generated",
+            }
+    except Exception as exc:
+        logger.exception("Admin generate-week failed for %s", job_key)
+        with _generate_lock:
+            _generate_jobs[job_key] = {
+                "status": "error",
+                "finished_at": time.time(),
+                "error": str(exc),
+                "message": "Generation failed",
+            }
 
 
 def _num(entry: Dict[str, Any], *keys: str) -> Optional[float]:
@@ -314,6 +348,11 @@ async def admin_generate_week(
     admin: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    """
+    Start week generation in a background thread and return immediately.
+    OpenAI week builds often exceed browser/client timeouts when awaited inline.
+    Poll GET .../generate-week/status until status is done|error.
+    """
     user = repo.get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -326,8 +365,52 @@ async def admin_generate_week(
         "dietary_preference": "omnivore",
         "allergies": [],
     }
-    plan = friday_release_next_week(payload) if next_week else generate_weekly_plan(payload)
-    return {"plan": plan, "message": "Weekly plan generated"}
+    job_key = _generate_job_key(user_id, next_week)
+    with _generate_lock:
+        current = _generate_jobs.get(job_key) or {}
+        if current.get("status") == "running":
+            return {
+                "status": "running",
+                "job_key": job_key,
+                "message": "Generation already in progress — keep polling status",
+            }
+        _generate_jobs[job_key] = {
+            "status": "running",
+            "started_at": time.time(),
+            "user_id": user_id,
+            "next_week": next_week,
+            "message": "OpenAI generation started",
+        }
+    threading.Thread(
+        target=_run_generate_week,
+        args=(job_key, payload, next_week),
+        daemon=True,
+        name=f"generate-week-{job_key}",
+    ).start()
+    return {
+        "status": "running",
+        "job_key": job_key,
+        "message": "OpenAI generation started — poll status (often 1–2 minutes)",
+    }
+
+
+@router.get("/users/{user_id}/generate-week/status")
+async def admin_generate_week_status(
+    user_id: int,
+    next_week: bool = False,
+    admin: dict = Depends(require_admin),
+):
+    job_key = _generate_job_key(user_id, next_week)
+    with _generate_lock:
+        job = dict(_generate_jobs.get(job_key) or {})
+    if not job:
+        return {
+            "status": "idle",
+            "job_key": job_key,
+            "message": "No generation job for this user yet",
+        }
+    job["job_key"] = job_key
+    return job
 
 
 @router.get("/stats")

@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,36 +66,60 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen>
 
   Future<void> _generateWeek({required bool nextWeek}) async {
     setState(() => _acting = true);
-    try {
-      final dio = ref.read(dioClientProvider).dio;
-      await dio.post(
-        '${ApiConstants.adminUsers}/${widget.userId}/generate-week',
-        queryParameters: {'next_week': nextWeek},
-        options: Options(
-          sendTimeout: const Duration(milliseconds: ApiConstants.aiPlanConnectionTimeout),
-          receiveTimeout: const Duration(milliseconds: ApiConstants.aiPlanReceiveTimeout),
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Starting OpenAI week generation — usually 1–2 minutes…'),
+          duration: Duration(seconds: 4),
         ),
       );
+    }
+    try {
+      final dio = ref.read(dioClientProvider).dio;
+      final start = await dio.post(
+        '${ApiConstants.adminUsers}/${widget.userId}/generate-week',
+        queryParameters: {'next_week': nextWeek},
+      );
+      final startData = Map<String, dynamic>.from(start.data as Map? ?? {});
+      var status = startData['status']?.toString() ?? 'running';
+
+      // Backend returns immediately; poll until OpenAI finishes (up to ~3 min).
+      final deadline = DateTime.now().add(const Duration(minutes: 3));
+      while (status == 'running' && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(seconds: 4));
+        if (!mounted) return;
+        final poll = await dio.get(
+          '${ApiConstants.adminUsers}/${widget.userId}/generate-week/status',
+          queryParameters: {'next_week': nextWeek},
+        );
+        final pollData = Map<String, dynamic>.from(poll.data as Map? ?? {});
+        status = pollData['status']?.toString() ?? 'idle';
+        if (status == 'error') {
+          throw Exception(pollData['error']?.toString() ?? 'Generation failed');
+        }
+        if (status == 'done') break;
+      }
+
+      if (status != 'done') {
+        throw Exception(
+          'Still generating after 3 minutes — refresh this user in a bit.',
+        );
+      }
+
       await _load();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(nextWeek ? 'Next-week plan released' : 'Current week plan regenerated'),
+          content: Text(
+            nextWeek ? 'Next-week plan released' : 'Current week plan regenerated',
+          ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      final timedOut = e is DioException &&
-          (e.type == DioExceptionType.receiveTimeout ||
-              e.type == DioExceptionType.connectionTimeout ||
-              e.type == DioExceptionType.sendTimeout);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            timedOut
-                ? 'Still generating (OpenAI can take 1–3 min on free Render). Wait, then refresh this user.'
-                : 'Action failed: $e',
-          ),
+          content: Text('Action failed: $e'),
           backgroundColor: Colors.red,
         ),
       );
