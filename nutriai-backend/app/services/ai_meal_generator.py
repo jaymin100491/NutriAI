@@ -49,12 +49,26 @@ Return ONLY valid JSON:
       "carbs_g": 40,
       "fat_g": 12,
       "fiber_g": 8,
-      "ingredients": [{"item": "black beans", "quantity": "1", "unit": "cup"}],
+      "prep_time_minutes": 10,
+      "cook_time_minutes": 20,
+      "servings": 1,
+      "ingredients": [
+        {"item": "black beans", "quantity": "1", "unit": "cup", "notes": "drained"},
+        {"item": "olive oil", "quantity": "1", "unit": "tbsp"}
+      ],
+      "instructions": [
+        "Rinse and drain the black beans.",
+        "Warm olive oil in a skillet over medium heat.",
+        "Add remaining ingredients and cook 8–10 minutes.",
+        "Season to taste and serve immediately."
+      ],
       "health_tags": ["high-fiber", "plant-based"]
     }
   ]
 }
 Exactly 28 meals: days 1-7 × breakfast, lunch, dinner, snack.
+Each meal MUST include 5–10 ingredients with real quantities/units AND 4–8 concrete cook steps
+(no vague lines like "cook the meal" or "season to taste" alone).
 """
 
 
@@ -201,11 +215,61 @@ def _call_anthropic(prompt: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _normalize_ingredients(raw: Any, fallback_name: str) -> List[Dict[str, Any]]:
+    if not isinstance(raw, list) or not raw:
+        return [{"item": fallback_name, "quantity": "1", "unit": "serving"}]
+    out: List[Dict[str, Any]] = []
+    for ing in raw:
+        if not isinstance(ing, dict):
+            continue
+        item = str(ing.get("item") or "").strip()
+        if not item:
+            continue
+        out.append(
+            {
+                "item": item,
+                "quantity": str(ing.get("quantity") or "1").strip(),
+                "unit": str(ing.get("unit") or "").strip(),
+                "notes": str(ing.get("notes") or "").strip() or None,
+            }
+        )
+    return out or [{"item": fallback_name, "quantity": "1", "unit": "serving"}]
+
+
+def _normalize_instructions(raw: Any, name: str, ingredients: List[Dict[str, Any]]) -> List[str]:
+    steps: List[str] = []
+    if isinstance(raw, list):
+        for s in raw:
+            text = str(s or "").strip()
+            if text:
+                steps.append(text)
+    # Reject vague placeholder-only lists
+    vague = {"prep fresh ingredients.", "season to taste.", "serve."}
+    concrete = [s for s in steps if s.lower().strip() not in vague and "using healthy methods" not in s.lower()]
+    if len(concrete) >= 3:
+        return concrete
+    # Build usable steps from ingredients when the model omitted detail
+    mise = ", ".join(
+        f"{i.get('quantity', '')} {i.get('unit', '')} {i.get('item', '')}".strip()
+        for i in ingredients[:8]
+    )
+    return [
+        f"Gather and measure: {mise}." if mise else f"Gather ingredients for {name}.",
+        "Prep produce and proteins (wash, chop, portion) before you turn on heat.",
+        f"Cook {name} using the method that fits the dish (sauté, simmer, bake, or grill) until done.",
+        "Taste, adjust seasoning with herbs/spices (keep salt moderate), and plate the planned serving size.",
+    ]
+
+
 def _recipe_from_ai_meal(meal: Dict[str, Any], recipe_id: int) -> Dict[str, Any]:
     name = (meal.get("name") or "Balanced meal").strip()
     cuisine = meal.get("cuisine_type") or "International"
     meal_type = meal.get("meal_type") or "lunch"
-    ingredients = meal.get("ingredients") or [{"item": name, "quantity": "1", "unit": "serving"}]
+    ingredients = _normalize_ingredients(meal.get("ingredients"), name)
+    instructions = _normalize_instructions(meal.get("instructions"), name, ingredients)
+    prep = int(meal.get("prep_time_minutes") or 15)
+    cook = int(meal.get("cook_time_minutes") or 20)
+    servings = int(meal.get("servings") or 1)
     return {
         "id": recipe_id,
         "name": name,
@@ -215,18 +279,13 @@ def _recipe_from_ai_meal(meal: Dict[str, Any], recipe_id: int) -> Dict[str, Any]
         "meal_type": [meal_type] if isinstance(meal_type, str) else list(meal_type),
         "dietary_tags": [],
         "health_tags": meal.get("health_tags") or ["balanced"],
-        "prep_time_minutes": 15,
-        "cook_time_minutes": 20,
-        "servings": 1,
+        "prep_time_minutes": prep,
+        "cook_time_minutes": cook,
+        "servings": servings,
         "difficulty": "easy",
         "image_url": "",
         "ingredients": ingredients,
-        "instructions": [
-            "Prep fresh ingredients.",
-            f"Cook {name} using healthy methods (grill, bake, steam, or sauté).",
-            "Season with herbs and spices; keep salt moderate.",
-            "Serve in a portion that fits your daily calorie target.",
-        ],
+        "instructions": instructions,
         "nutrition": {
             "calories": int(meal.get("calories") or 400),
             "protein_g": float(meal.get("protein_g") or 20),

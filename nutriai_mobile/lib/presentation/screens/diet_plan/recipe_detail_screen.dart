@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/diet_plan_model.dart';
 import '../../providers/diet_plan_provider.dart';
+import '../../widgets/craft/craft.dart';
 
 class RecipeDetailScreen extends ConsumerStatefulWidget {
   final int recipeId;
-  /// Prefer passing the plan-embedded recipe so detail works even when catalog lookup 404s.
   final Recipe? initialRecipe;
 
   const RecipeDetailScreen({
@@ -22,9 +23,11 @@ class RecipeDetailScreen extends ConsumerStatefulWidget {
 class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   bool _cooking = false;
   int _step = 0;
+  final Set<int> _checkedIngredients = {};
 
   void _openCooking(Recipe recipe) {
-    if (recipe.instructions.isEmpty) {
+    final steps = recipe.instructions;
+    if (steps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No cooking steps available for this recipe.')),
       );
@@ -36,20 +39,26 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     });
   }
 
+  Recipe? _resolve(AsyncValue<Recipe?> recipeAsync) {
+    return recipeAsync.valueOrNull ?? widget.initialRecipe;
+  }
+
   @override
   Widget build(BuildContext context) {
     final recipeAsync = ref.watch(recipeDetailProvider(widget.recipeId));
+    final recipe = _resolve(recipeAsync);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: Text(
-          _cooking ? 'Cooking mode' : (widget.initialRecipe?.name ?? 'Recipe'),
+          _cooking ? 'Cook mode' : (recipe?.name ?? 'Recipe'),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
             if (_cooking) {
               setState(() => _cooking = false);
@@ -60,115 +69,297 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         ),
       ),
       body: recipeAsync.when(
-        data: (fetched) {
-          final recipe = fetched ?? widget.initialRecipe;
+        data: (_) {
           if (recipe == null) {
-            return _NotFound(
-              onBack: () => Navigator.of(context).maybePop(),
-              onRetry: () => ref.invalidate(recipeDetailProvider(widget.recipeId)),
+            return CraftEmptyState(
+              icon: Icons.restaurant_menu_rounded,
+              title: 'Recipe not found',
+              body: 'This meal may have been generated for your plan. Go back and open it from Plan.',
+              ctaLabel: 'Go back',
+              onCta: () => Navigator.of(context).maybePop(),
             );
           }
           if (_cooking) {
             return _CookingMode(
               recipe: recipe,
               step: _step,
+              checkedIngredients: _checkedIngredients,
+              onToggleIngredient: (i) => setState(() {
+                if (_checkedIngredients.contains(i)) {
+                  _checkedIngredients.remove(i);
+                } else {
+                  _checkedIngredients.add(i);
+                }
+              }),
               onStep: (s) => setState(() => _step = s),
               onExit: () => setState(() => _cooking = false),
             );
           }
           return _RecipeBody(
             recipe: recipe,
+            checkedIngredients: _checkedIngredients,
+            onToggleIngredient: (i) => setState(() {
+              if (_checkedIngredients.contains(i)) {
+                _checkedIngredients.remove(i);
+              } else {
+                _checkedIngredients.add(i);
+              }
+            }),
             onStartCooking: () => _openCooking(recipe),
           );
         },
         loading: () {
-          if (widget.initialRecipe != null) {
-            final recipe = widget.initialRecipe!;
-            if (_cooking) {
-              return _CookingMode(
-                recipe: recipe,
-                step: _step,
-                onStep: (s) => setState(() => _step = s),
-                onExit: () => setState(() => _cooking = false),
-              );
-            }
+          if (recipe != null) {
             return _RecipeBody(
               recipe: recipe,
+              checkedIngredients: _checkedIngredients,
+              onToggleIngredient: (i) => setState(() {
+                if (_checkedIngredients.contains(i)) {
+                  _checkedIngredients.remove(i);
+                } else {
+                  _checkedIngredients.add(i);
+                }
+              }),
               onStartCooking: () => _openCooking(recipe),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: const [
+              CraftShimmer(height: 160),
+              SizedBox(height: 14),
+              CraftShimmer(height: 80),
+              SizedBox(height: 14),
+              CraftShimmer(height: 200),
+            ],
+          );
         },
         error: (_, __) {
-          final recipe = widget.initialRecipe;
           if (recipe != null) {
-            if (_cooking) {
-              return _CookingMode(
-                recipe: recipe,
-                step: _step,
-                onStep: (s) => setState(() => _step = s),
-                onExit: () => setState(() => _cooking = false),
-              );
-            }
             return _RecipeBody(
               recipe: recipe,
+              checkedIngredients: _checkedIngredients,
+              onToggleIngredient: (i) => setState(() {
+                if (_checkedIngredients.contains(i)) {
+                  _checkedIngredients.remove(i);
+                } else {
+                  _checkedIngredients.add(i);
+                }
+              }),
               onStartCooking: () => _openCooking(recipe),
             );
           }
-          return _NotFound(
-            onBack: () => Navigator.of(context).maybePop(),
+          return CraftErrorState(
+            message: 'Could not load this recipe.',
             onRetry: () => ref.invalidate(recipeDetailProvider(widget.recipeId)),
           );
         },
       ),
-      floatingActionButton: _cooking
+      floatingActionButton: (_cooking || recipe == null)
           ? null
           : FloatingActionButton.extended(
-              onPressed: () {
-                final recipe = recipeAsync.valueOrNull ?? widget.initialRecipe;
-                if (recipe == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Recipe not loaded yet')),
-                  );
-                  return;
-                }
-                _openCooking(recipe);
-              },
+              onPressed: () => _openCooking(recipe),
               icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Start Cooking'),
+              label: const Text('Start cooking'),
             ),
     );
   }
 }
 
-class _NotFound extends StatelessWidget {
-  final VoidCallback onBack;
-  final VoidCallback onRetry;
-  const _NotFound({required this.onBack, required this.onRetry});
+class _RecipeBody extends StatelessWidget {
+  final Recipe recipe;
+  final Set<int> checkedIngredients;
+  final ValueChanged<int> onToggleIngredient;
+  final VoidCallback onStartCooking;
+
+  const _RecipeBody({
+    required this.recipe,
+    required this.checkedIngredients,
+    required this.onToggleIngredient,
+    required this.onStartCooking,
+  });
+
+  String _ingLine(Ingredient ing) {
+    final amount = '${ing.quantity} ${ing.unit}'.trim();
+    final base = amount.isEmpty ? ing.item : '$amount ${ing.item}';
+    if (ing.notes != null && ing.notes!.isNotEmpty) {
+      return '$base · ${ing.notes}';
+    }
+    return base;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.restaurant_menu, size: 48, color: AppTheme.textSecondaryColor),
-            const SizedBox(height: 12),
-            const Text('Recipe not found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            const Text(
-              'This meal may have been generated for your plan and isn’t in the shared catalog.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.textSecondaryColor),
+    final n = recipe.nutrition;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+      children: [
+        Container(
+          height: 150,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1F6B4A), Color(0xFF2F8F63)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(height: 20),
-            FilledButton(onPressed: onBack, child: const Text('Go back')),
-            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ),
+          child: Stack(
+            children: [
+              const Center(child: Icon(Icons.restaurant_rounded, size: 52, color: Colors.white70)),
+              Positioned(
+                left: 16,
+                bottom: 14,
+                right: 16,
+                child: Text(
+                  recipe.name,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ).craftIn(),
+        const SizedBox(height: 14),
+        Text(
+          recipe.description,
+          style: GoogleFonts.plusJakartaSans(
+            color: AppTheme.textSecondaryColor,
+            height: 1.45,
+            fontSize: 14,
+          ),
+        ).craftIn(delayMs: 40),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _MetaChip(icon: Icons.schedule_rounded, label: '${recipe.totalTimeMinutes} min total'),
+            _MetaChip(icon: Icons.soup_kitchen_outlined, label: '${recipe.prepTimeMinutes} prep'),
+            _MetaChip(icon: Icons.local_fire_department_outlined, label: '${recipe.cookTimeMinutes} cook'),
+            _MetaChip(icon: Icons.people_outline, label: '${recipe.servings} serving${recipe.servings == 1 ? '' : 's'}'),
+            _MetaChip(icon: Icons.signal_cellular_alt, label: recipe.difficulty),
           ],
-        ),
-      ),
+        ).craftIn(delayMs: 60),
+        const SizedBox(height: 16),
+        TrustBanner(
+          verified: true,
+          title: 'From your meal plan',
+          subtitle:
+              'Quantities and steps below are stored with this meal. Use Start cooking for a guided walkthrough.',
+          sources: [
+            if (recipe.cuisineType.isNotEmpty) recipe.cuisineType,
+            '${n.calories} kcal',
+          ],
+        ).craftIn(delayMs: 80),
+        const SizedBox(height: 14),
+        _Card(
+          title: 'Nutrition per serving',
+          child: Row(
+            children: [
+              _Nut(label: 'Cal', value: '${n.calories}'),
+              _Nut(label: 'Protein', value: '${n.proteinG.toStringAsFixed(0)}g'),
+              _Nut(label: 'Carbs', value: '${n.carbsG.toStringAsFixed(0)}g'),
+              _Nut(label: 'Fat', value: '${n.fatG.toStringAsFixed(0)}g'),
+              _Nut(label: 'Fiber', value: '${n.fiberG.toStringAsFixed(0)}g'),
+            ],
+          ),
+        ).craftIn(delayMs: 100),
+        _Card(
+          title: 'Ingredients',
+          subtitle: 'Check off as you prep · exact quantities',
+          child: Column(
+            children: [
+              for (var i = 0; i < recipe.ingredients.length; i++)
+                CheckboxListTile(
+                  value: checkedIngredients.contains(i),
+                  onChanged: (_) => onToggleIngredient(i),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                  title: Text(
+                    _ingLine(recipe.ingredients[i]),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      decoration: checkedIngredients.contains(i) ? TextDecoration.lineThrough : null,
+                      color: checkedIngredients.contains(i)
+                          ? AppTheme.textSecondaryColor
+                          : AppTheme.ink,
+                    ),
+                  ),
+                ),
+              if (recipe.ingredients.isEmpty)
+                Text(
+                  'No ingredients stored — rebuild the week to generate detailed quantities.',
+                  style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondaryColor),
+                ),
+            ],
+          ),
+        ).craftIn(delayMs: 120),
+        _Card(
+          title: 'How to make it',
+          subtitle: '${recipe.instructions.length} steps',
+          child: Column(
+            children: [
+              for (var i = 0; i < recipe.instructions.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${i + 1}',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          recipe.instructions[i],
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14.5, height: 1.45),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (recipe.instructions.isEmpty)
+                Text(
+                  'No steps stored yet. Rebuild your week for full cook instructions.',
+                  style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondaryColor),
+                ),
+            ],
+          ),
+        ).craftIn(delayMs: 140),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          onPressed: onStartCooking,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+          ),
+          icon: const Icon(Icons.play_arrow_rounded),
+          label: Text(
+            'Start cooking',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 16),
+          ),
+        ).craftIn(delayMs: 160),
+      ],
     );
   }
 }
@@ -176,12 +367,16 @@ class _NotFound extends StatelessWidget {
 class _CookingMode extends StatelessWidget {
   final Recipe recipe;
   final int step;
+  final Set<int> checkedIngredients;
+  final ValueChanged<int> onToggleIngredient;
   final ValueChanged<int> onStep;
   final VoidCallback onExit;
 
   const _CookingMode({
     required this.recipe,
     required this.step,
+    required this.checkedIngredients,
+    required this.onToggleIngredient,
     required this.onStep,
     required this.onExit,
   });
@@ -191,171 +386,192 @@ class _CookingMode extends StatelessWidget {
     final steps = recipe.instructions;
     final safeStep = step.clamp(0, steps.length - 1);
     final isLast = safeStep >= steps.length - 1;
+    final progress = (safeStep + 1) / steps.length;
 
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(recipe.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          Text(
-            'Step ${safeStep + 1} of ${steps.length}',
-            style: const TextStyle(color: AppTheme.textSecondaryColor, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: (safeStep + 1) / steps.length,
-            color: AppTheme.primaryColor,
-            backgroundColor: AppTheme.borderSubtle,
-          ),
-          const SizedBox(height: 28),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.borderSubtle),
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            children: [
+              Text(
+                recipe.name,
+                style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w800),
               ),
-              child: SingleChildScrollView(
+              const SizedBox(height: 6),
+              Text(
+                'Step ${safeStep + 1} of ${steps.length}',
+                style: GoogleFonts.plusJakartaSans(
+                  color: AppTheme.textSecondaryColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  color: AppTheme.primaryColor,
+                  backgroundColor: AppTheme.borderSubtle,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppTheme.borderSubtle),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
                 child: Text(
                   steps[safeStep],
-                  style: const TextStyle(fontSize: 22, height: 1.45, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 24,
+                    height: 1.4,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: safeStep == 0 ? onExit : () => onStep(safeStep - 1),
-                  child: Text(safeStep == 0 ? 'Exit' : 'Back'),
-                ),
+              const SizedBox(height: 18),
+              Text(
+                'Mise en place',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 15),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () {
-                    if (isLast) {
-                      onExit();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Nice work — meal complete!')),
-                      );
-                    } else {
-                      onStep(safeStep + 1);
-                    }
-                  },
-                  child: Text(isLast ? 'Done' : 'Next step'),
+              const SizedBox(height: 4),
+              Text(
+                'Keep quantities handy while you cook',
+                style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppTheme.textSecondaryColor),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.borderSubtle),
+                ),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < recipe.ingredients.length; i++)
+                      CheckboxListTile(
+                        value: checkedIngredients.contains(i),
+                        onChanged: (_) => onToggleIngredient(i),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: Text(
+                          '${recipe.ingredients[i].quantity} ${recipe.ingredients[i].unit} ${recipe.ingredients[i].item}'
+                              .replaceAll(RegExp(r'\s+'), ' ')
+                              .trim(),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            decoration:
+                                checkedIngredients.contains(i) ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
           ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: safeStep == 0 ? onExit : () => onStep(safeStep - 1),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                    child: Text(safeStep == 0 ? 'Exit' : 'Back'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: () {
+                      if (isLast) {
+                        onExit();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Nice work — meal complete!')),
+                        );
+                      } else {
+                        onStep(safeStep + 1);
+                      }
+                    },
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                    child: Text(isLast ? 'Done' : 'Next step'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Card extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget child;
+  const _Card({required this.title, this.subtitle, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 16)),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle!,
+              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppTheme.textSecondaryColor),
+            ),
+          ],
+          const SizedBox(height: 10),
+          child,
         ],
       ),
     );
   }
 }
 
-class _RecipeBody extends StatelessWidget {
-  final Recipe recipe;
-  final VoidCallback onStartCooking;
-  const _RecipeBody({required this.recipe, required this.onStartCooking});
+class _MetaChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _MetaChip({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-      children: [
-        Container(
-          height: 160,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-              colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
-            ),
-          ),
-          child: const Center(child: Icon(Icons.restaurant, size: 56, color: Colors.white)),
-        ),
-        const SizedBox(height: 16),
-        Text(recipe.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        Text(
-          recipe.description,
-          style: const TextStyle(color: AppTheme.textSecondaryColor, height: 1.4),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            _chip(Icons.schedule, '${recipe.prepTimeMinutes + recipe.cookTimeMinutes} min'),
-            const SizedBox(width: 8),
-            _chip(Icons.people_outline, '${recipe.servings} serving'),
-            const SizedBox(width: 8),
-            _chip(Icons.signal_cellular_alt, recipe.difficulty),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _section(
-          'Nutrition',
-          Column(
-            children: [
-              _row('Calories', '${recipe.nutrition.calories} kcal'),
-              _row('Protein', '${recipe.nutrition.proteinG.toStringAsFixed(0)} g'),
-              _row('Carbs', '${recipe.nutrition.carbsG.toStringAsFixed(0)} g'),
-              _row('Fat', '${recipe.nutrition.fatG.toStringAsFixed(0)} g'),
-              _row('Fiber', '${recipe.nutrition.fiberG.toStringAsFixed(0)} g'),
-            ],
-          ),
-        ),
-        _section(
-          'Ingredients',
-          Column(
-            children: [
-              for (final ing in recipe.ingredients)
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(ing.item),
-                  trailing: Text(
-                    '${ing.quantity} ${ing.unit}'.trim(),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        _section(
-          'Instructions',
-          Column(
-            children: [
-              for (var i = 0; i < recipe.instructions.length; i++)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    radius: 14,
-                    backgroundColor: AppTheme.primaryColor,
-                    child: Text('${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                  ),
-                  title: Text(recipe.instructions[i], style: const TextStyle(height: 1.35)),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        FilledButton.icon(
-          onPressed: onStartCooking,
-          icon: const Icon(Icons.play_arrow_rounded),
-          label: const Text('Start Cooking'),
-        ),
-      ],
-    );
-  }
-
-  Widget _chip(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -365,41 +581,26 @@ class _RecipeBody extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: AppTheme.primaryColor),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 5),
+          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
+}
 
-  Widget _section(String title, Widget child) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderSubtle),
-      ),
+class _Nut extends StatelessWidget {
+  final String label;
+  final String value;
+  const _Nut({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-          const SizedBox(height: 8),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _row(String k, String v) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(child: Text(k)),
-          Text(v, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(value, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 14)),
+          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: AppTheme.textSecondaryColor)),
         ],
       ),
     );

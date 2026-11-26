@@ -114,19 +114,19 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: TrustBanner(
         verified: true,
-        title: 'Coach grounded in your data',
+        title: 'Answers only from your plan',
         subtitle:
-            'Swaps and plan changes use your labs, goals, and current week — not generic advice.',
-        sources: const ['context: labs + plan', 'mode: coaching'],
+            'Ask how to cook tomorrow’s breakfast — Coach uses your week’s dishes, quantities, and steps. It won’t invent random meals.',
+        sources: const ['source: current week plan', 'OpenAI when needed'],
       ),
     );
   }
 
   Widget _buildEmptyState(List<String> suggestions) {
     final defaults = [
+      'How do I make tomorrow’s breakfast?',
+      'What’s on my plan for today?',
       'Change tofu to paneer in my plan',
-      'Generate a new 7-day plan',
-      'Focus on cholesterol first, then weight loss',
     ];
     final chips = suggestions.isNotEmpty ? suggestions : defaults;
 
