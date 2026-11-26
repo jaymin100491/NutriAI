@@ -114,10 +114,10 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: TrustBanner(
         verified: true,
-        title: 'Answers only from your plan',
+        title: 'Nutrition coaching only',
         subtitle:
-            'Ask how to cook tomorrow’s breakfast — Coach uses your week’s dishes, quantities, and steps. It won’t invent random meals.',
-        sources: const ['source: current week plan', 'OpenAI when needed'],
+            'Ask about your plan, cooking steps, labs, or goals. Unrelated asks (weather, sports, trivia) get a short redirect — not an answer.',
+        sources: const ['scope: labs + plan + goals', 'OpenAI when needed'],
       ),
     );
   }

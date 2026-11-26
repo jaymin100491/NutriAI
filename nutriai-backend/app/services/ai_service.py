@@ -218,6 +218,74 @@ def _cook_card(meal: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+_OFF_TOPIC_HINTS = (
+    "weather",
+    "forecast",
+    "temperature in",
+    "temp in",
+    "raining",
+    "humidity",
+    "joke",
+    "funny",
+    "super bowl",
+    "world cup",
+    "who won",
+    "score of",
+    "capital of",
+    "president",
+    "prime minister",
+    "stock price",
+    "bitcoin",
+    "crypto",
+    "movie",
+    "netflix",
+    "celebrity",
+    "horoscope",
+    "lottery",
+    "lottery numbers",
+)
+
+
+def _is_off_topic(message: str) -> bool:
+    """True for clearly unrelated asks (weather, sports, trivia, etc.)."""
+    msg = message.lower().strip()
+    if any(h in msg for h in _OFF_TOPIC_HINTS):
+        return True
+    # "weather in Austin", "what's the weather in xyz"
+    if re.search(r"\bweather\b", msg) and re.search(r"\bin\b", msg):
+        return True
+    if re.search(r"\b(temperature|forecast)\b.*\bin\b", msg):
+        return True
+    return False
+
+
+def _off_topic_redirect(user_id: int) -> str:
+    user = _get_user(user_id)
+    plan = _current_plan(user_id)
+    tomorrow = date.today() + timedelta(days=1)
+    tip = "How do I make tomorrow’s breakfast?"
+    if plan:
+        t_meals = _meals_for_date(plan, tomorrow)
+        breakfast = next(
+            (m for m in t_meals if str(m.get("meal_type") or "").lower() == "breakfast"),
+            None,
+        )
+        if breakfast:
+            name = _meal_recipe(breakfast).get("name")
+            if name:
+                tip = f"How do I cook {name}?"
+    return (
+        f"I’m your NutriAI Coach for **{user.get('first_name', 'you')}** — I only help with "
+        "your labs, goals, meal plan, cooking steps, and nutrition coaching.\n\n"
+        "I can’t answer unrelated questions (weather, sports, trivia, etc.).\n\n"
+        "Try something like:\n"
+        f"• “{tip}”\n"
+        "• “What’s on my plan for today?”\n"
+        "• “Why is this meal good for my cholesterol?”\n"
+        "• “Change tofu to paneer”"
+    )
+
+
 def _is_plan_cook_question(message: str) -> bool:
     """Strict intent: only route to deterministic cook cards for clear plan/meal asks."""
     msg = message.lower().strip()
@@ -339,33 +407,8 @@ def _resilient_general_answer(user_id: int, message: str) -> str:
             ]
             tomorrow_line = " Tomorrow on your plan — " + "; ".join(bits) + "."
 
-    # Off-topic / random demo prompts
-    off_topic = any(
-        w in msg
-        for w in (
-            "weather",
-            "joke",
-            "super bowl",
-            "who won",
-            "capital of",
-            "president",
-            "stock",
-            "bitcoin",
-            "movie",
-            "celebrity",
-        )
-    )
-    if off_topic or len(msg) < 2:
-        return (
-            f"I’m {user['first_name']}'s NutriAI Coach — I stay focused on *your* nutrition, labs, and meal plan "
-            f"(not general trivia).{lab_bit}\n\n"
-            f"Right now I’m optimizing for **{primary}**.{tomorrow_line}\n\n"
-            "Try me on something demo-ready:\n"
-            "• “How do I make tomorrow’s breakfast?”\n"
-            "• “What’s on my plan today?”\n"
-            "• “Why is this good for my cholesterol?”\n"
-            "• “Change tofu to paneer”"
-        )
+    if _is_off_topic(message) or len(msg) < 2:
+        return _off_topic_redirect(user_id)
 
     # Nutrition / lifestyle without a specific meal ask
     if any(w in msg for w in ("cholesterol", "ldl", "lipid")):
@@ -441,9 +484,9 @@ CRITICAL RULES (must follow):
 3. If the user asks how to cook a meal, use that meal's ingredients (with quantities) and instructions exactly.
 4. If asked about a day/meal that is missing, say so and list what IS on the plan for nearby days.
 5. For non-meal nutrition / lifestyle questions, answer helpfully using labs/goals — still do not invent plan dishes.
-6. For off-topic / random questions (weather, sports, trivia, jokes): answer briefly in one witty line,
-   then steer back to this user's coaching (labs, goals, or tomorrow's real plan meals). Never pretend
-   a random topic is a meal on their plan.
+6. For off-topic / unrelated questions (weather, sports, trivia, jokes, news, stocks): DO NOT answer
+   the topic. Politely refuse in 1–2 sentences and redirect to labs, goals, meal plan, or cooking help.
+   Never pretend a random topic is a meal on their plan.
 7. Be warm, specific, and demo-ready. Wellness coaching only — not a medical diagnosis.
 
 USER PROFILE:
@@ -634,6 +677,24 @@ async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
     """
     add_chat_message(user_id, "user", message)
 
+    # Hard block: weather / sports / trivia — never call LLM to answer those
+    if _is_off_topic(message):
+        final_message = _off_topic_redirect(user_id)
+        suggestions = _get_quick_suggestions(user_id)
+        add_chat_message(
+            user_id,
+            "assistant",
+            final_message,
+            {"plan_modified": False, "goals_updated": False, "suggestions": suggestions, "path": "off_topic"},
+        )
+        return {
+            "response": final_message,
+            "plan_modified": False,
+            "goals_updated": False,
+            "suggestions": suggestions,
+            "updated_plan_id": None,
+        }
+
     rule_result = _rule_based_actions(user_id, message)
 
     grounded = None
@@ -643,7 +704,7 @@ async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
     system = _build_system_context(user_id)
     history = get_chat_history(user_id)
 
-    # Always try LLM for general / random questions (and as enrichment never overrides grounded cook cards)
+    # LLM only for in-domain coaching (nutrition, labs, goals, plan, lifestyle tied to health)
     llm_response = await _call_openai(system, history, message)
     if not llm_response:
         llm_response = await _call_claude(system, history, message)
