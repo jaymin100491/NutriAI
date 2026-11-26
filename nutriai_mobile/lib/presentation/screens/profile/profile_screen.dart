@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/onboarding_prefs.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/craft/craft.dart';
 import '../admin/admin_console_screen.dart';
 import '../admin/sample_lab_order_screen.dart';
 import '../auth/login_screen.dart';
@@ -22,166 +24,164 @@ class ProfileScreen extends ConsumerWidget {
     final user = authState.user;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeader(user),
-            const SizedBox(height: 16),
-            _buildSection('Account', [
-              _buildListTile(context, Icons.auto_awesome_outlined, 'What I want to change', () async {
-                await OnboardingPrefs.resetIntent(user?.id);
-                if (!context.mounted) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const IntentOnboardingScreen(forceShow: true),
-                  ),
-                );
-              }),
-              _buildListTile(context, Icons.science, 'Lab Results', () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const LabResultsListScreen()));
-              }),
-              _buildListTile(context, Icons.upload_file, 'Upload / paste labs', () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PasteLabsScreen(allowSkip: false)),
-                );
-              }),
-              _buildListTile(context, Icons.history, 'Past diet plans', () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DietPlanHistoryScreen()),
-                );
-              }),
-              _buildListTile(context, Icons.favorite, 'Health Goals', () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalsScreen()));
-              }),
-              _buildListTile(context, Icons.restaurant, 'Dietary Preferences', () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DietaryPreferencesScreen()),
-                );
-              }),
-              _buildListTile(context, Icons.notification_important, 'Allergies', () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DietaryPreferencesScreen()),
-                );
-              }),
-            ]),
-            if (user?.isAdmin == true)
-              _buildSection('Administration', [
-                _buildListTile(context, Icons.admin_panel_settings, 'Operations console', () {
+      backgroundColor: AppTheme.backgroundColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(user).craftIn(),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: TrustBanner(
+                  verified: true,
+                  title: 'Your coaching profile',
+                  subtitle:
+                      'Labs, goals, and preferences drive the nutrition engine and Coach context.',
+                  sources: const ['privacy: your account only'],
+                ).craftIn(delayMs: 40),
+              ),
+              const SizedBox(height: 8),
+              _buildSection('Health data', [
+                _buildListTile(context, Icons.auto_awesome_outlined, 'What I want to change', () async {
+                  await OnboardingPrefs.resetIntent(user?.id);
+                  if (!context.mounted) return;
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const AdminConsoleScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const IntentOnboardingScreen(forceShow: true),
+                    ),
                   );
                 }),
-              ]),
-            _buildSection('Retest (demo)', [
-              _buildListTile(context, Icons.science, 'Sample Labcorp-style lab order', () {
-                if (user == null) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SampleLabOrderScreen(
-                      userName: user.fullName,
-                      adminView: false,
+                _buildListTile(context, Icons.science_outlined, 'Lab results', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const LabResultsListScreen()));
+                }),
+                _buildListTile(context, Icons.upload_file_outlined, 'Upload / paste labs', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PasteLabsScreen(allowSkip: false)),
+                  );
+                }),
+                _buildListTile(context, Icons.flag_outlined, 'Health goals', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalsScreen()));
+                }),
+                _buildListTile(context, Icons.restaurant_outlined, 'Dietary preferences', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DietaryPreferencesScreen()),
+                  );
+                }),
+                _buildListTile(context, Icons.history_rounded, 'Past diet plans', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DietPlanHistoryScreen()),
+                  );
+                }),
+              ]).craftIn(delayMs: 80),
+              if (user?.isAdmin == true)
+                _buildSection('Administration', [
+                  _buildListTile(context, Icons.admin_panel_settings_outlined, 'Operations console', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AdminConsoleScreen()),
+                    );
+                  }),
+                ]),
+              _buildSection('Lab tools', [
+                _buildListTile(context, Icons.description_outlined, 'Sample lab order', () {
+                  if (user == null) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SampleLabOrderScreen(
+                        userName: user.fullName,
+                        adminView: false,
+                      ),
                     ),
+                  );
+                }),
+              ]).craftIn(delayMs: 110),
+              _buildSection('Account', [
+                _buildListTile(
+                  context,
+                  Icons.logout_rounded,
+                  'Log out',
+                  () => _showLogoutDialog(context, ref),
+                  isDestructive: true,
+                ),
+              ]).craftIn(delayMs: 140),
+              const SizedBox(height: 20),
+              Center(
+                child: Text(
+                  'NutriAI · Version 1.0.0',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppTheme.textSecondaryColor,
+                    fontSize: 12,
                   ),
-                );
-              }),
-            ]),
-            _buildSection('Settings', [
-              _buildListTile(context, Icons.notifications, 'Notifications', () {}),
-              _buildListTile(context, Icons.language, 'Language', () {}),
-              _buildListTile(context, Icons.dark_mode, 'Dark Mode', () {}),
-            ]),
-            _buildSection('Support', [
-              _buildListTile(context, Icons.help, 'Help Center', () {}),
-              _buildListTile(context, Icons.privacy_tip, 'Privacy Policy', () {}),
-              _buildListTile(context, Icons.article, 'Terms of Service', () {}),
-            ]),
-            _buildSection('Account Actions', [
-              _buildListTile(
-                context,
-                Icons.logout,
-                'Log Out',
-                () => _showLogoutDialog(context, ref),
-                isDestructive: true,
+                ),
               ),
-            ]),
-            const SizedBox(height: 32),
-            Text(
-              'Version 1.0.0',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-            ),
-            const SizedBox(height: 32),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildHeader(user) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
+    final initial = (user?.firstName?.isNotEmpty == true)
+        ? user!.firstName.substring(0, 1).toUpperCase()
+        : 'U';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Row(
         children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: Colors.white,
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppTheme.chipBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.borderSubtle),
+            ),
+            alignment: Alignment.center,
             child: Text(
-              user?.firstName.substring(0, 1).toUpperCase() ?? 'U',
-              style: const TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
+              initial,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
                 color: AppTheme.primaryColor,
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            user?.fullName ?? 'User',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            user?.email ?? '',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              user?.subscriptionTier?.toUpperCase() ?? 'FREE',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user?.fullName ?? 'Member',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  user?.email ?? '',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: AppTheme.textSecondaryColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ProvenanceChip(
+                  label: (user?.subscriptionTier ?? 'free').toString().toUpperCase(),
+                  icon: Icons.workspace_premium_outlined,
+                ),
+              ],
             ),
           ),
         ],
@@ -190,25 +190,30 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Widget _buildSection(String title, List<Widget> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
             title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textSecondaryColor,
             ),
           ),
-        ),
-        Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(children: items),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppTheme.borderSubtle),
+            ),
+            child: Column(children: items),
+          ),
+        ],
+      ),
     );
   }
 
@@ -220,12 +225,18 @@ class ProfileScreen extends ConsumerWidget {
     bool isDestructive = false,
   }) {
     return ListTile(
-      leading: Icon(icon, color: isDestructive ? Colors.red : AppTheme.primaryColor),
+      leading: Icon(icon, color: isDestructive ? AppTheme.errorColor : AppTheme.primaryColor),
       title: Text(
         title,
-        style: TextStyle(color: isDestructive ? Colors.red : null),
+        style: GoogleFonts.plusJakartaSans(
+          fontWeight: FontWeight.w600,
+          color: isDestructive ? AppTheme.errorColor : AppTheme.ink,
+        ),
       ),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: isDestructive ? AppTheme.errorColor : AppTheme.textSecondaryColor,
+      ),
       onTap: onTap,
     );
   }
@@ -234,14 +245,17 @@ class ProfileScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out?'),
+        title: Text('Log out', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+        content: Text(
+          'You’ll need to sign in again to see your labs and plan.',
+          style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondaryColor),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () async {
               await ref.read(authProvider.notifier).logout();
               if (context.mounted) {
@@ -251,8 +265,8 @@ class ProfileScreen extends ConsumerWidget {
                 );
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Log Out'),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            child: const Text('Log out'),
           ),
         ],
       ),

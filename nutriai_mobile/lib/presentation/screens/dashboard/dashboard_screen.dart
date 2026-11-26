@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/diet_plan_provider.dart';
 import '../../providers/goal_provider.dart';
 import '../../providers/lab_result_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/lab_result_model.dart';
+import '../../widgets/craft/craft.dart';
 import '../main_navigation_screen.dart';
 import '../goals/goals_screen.dart';
 import '../lab_results/lab_results_list_screen.dart';
@@ -65,7 +67,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           children: [
                             Text(
                               '${_greeting()},',
-                              style: const TextStyle(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 14,
                                 color: AppTheme.textSecondaryColor,
                                 fontWeight: FontWeight.w500,
@@ -73,11 +75,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                             Text(
                               userName,
-                              style: const TextStyle(
-                                fontSize: 28,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 30,
                                 fontWeight: FontWeight.w800,
-                                letterSpacing: -0.6,
-                                height: 1.15,
+                                letterSpacing: -0.7,
+                                height: 1.1,
                               ),
                             ),
                           ],
@@ -107,22 +109,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     labAsync.when(
-                      data: (lab) => _HealthHero(lab: lab, goals: goalsAsync.valueOrNull),
-                      loading: () => const _SkeletonCard(height: 140),
+                      data: (lab) => _HealthHero(lab: lab, goals: goalsAsync.valueOrNull).craftIn(),
+                      loading: () => const CraftShimmer(height: 140),
                       error: (_, __) => _HealthHero(lab: null, goals: goalsAsync.valueOrNull),
                     ),
                     const SizedBox(height: 14),
-                    _CoachBanner(onTap: () => MainNavController.switchToTab(context, 3)),
+                    _CoachBanner(onTap: () => MainNavController.switchToTab(context, 3))
+                        .craftIn(delayMs: 50),
                     const SizedBox(height: 22),
-                    _SectionTitle(
+                    CraftSectionHeader(
                       title: "Today's meals",
                       action: 'Full plan',
                       onAction: () => MainNavController.switchToTab(context, 1),
-                    ),
+                    ).craftIn(delayMs: 80),
                     const SizedBox(height: 10),
-                    _TodaysMeals(planState: planState),
+                    _TodaysMeals(planState: planState).craftIn(delayMs: 110),
                     const SizedBox(height: 22),
-                    const _SectionTitle(title: 'Quick actions'),
+                    const CraftSectionHeader(title: 'Quick actions').craftIn(delayMs: 130),
                     const SizedBox(height: 10),
                     Row(
                       children: [
@@ -156,7 +159,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ),
                         ),
                       ],
-                    ),
+                    ).craftIn(delayMs: 150),
                     const SizedBox(height: 22),
                     goalsAsync.when(
                       data: (goals) => goals.isEmpty
@@ -164,7 +167,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _SectionTitle(
+                                CraftSectionHeader(
                                   title: 'Your priorities',
                                   action: 'Manage',
                                   onAction: () => Navigator.push(
@@ -175,7 +178,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 const SizedBox(height: 10),
                                 _GoalsStrip(goals: goals),
                               ],
-                            ),
+                            ).craftIn(delayMs: 180),
                       loading: () => const SizedBox.shrink(),
                       error: (_, __) => const SizedBox.shrink(),
                     ),
@@ -355,20 +358,39 @@ class _TodaysMeals extends StatelessWidget {
   Widget build(BuildContext context) {
     final plan = planState.currentPlan;
     if (planState.isLoading && plan == null) {
-      return const _SkeletonCard(height: 160);
+      return const CraftShimmer(height: 160);
     }
     if (plan == null) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: AppTheme.borderSubtle),
         ),
-        child: Text(
-          planState.error ?? 'No meals for today yet — open Plan to generate your week.',
-          style: const TextStyle(color: AppTheme.textSecondaryColor, height: 1.4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'No meals for today',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              planState.error ?? 'Generate your week from labs and calorie targets.',
+              style: GoogleFonts.plusJakartaSans(
+                color: AppTheme.textSecondaryColor,
+                height: 1.4,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => MainNavController.switchToTab(context, 1),
+              child: const Text('Open Plan'),
+            ),
+          ],
         ),
       );
     }
@@ -605,26 +627,6 @@ class _MetricPill extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final String? action;
-  final VoidCallback? onAction;
-  const _SectionTitle({required this.title, this.action, this.onAction});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-        ),
-        if (action != null && onAction != null)
-          TextButton(onPressed: onAction, child: Text(action!)),
-      ],
-    );
-  }
-}
-
 class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -640,25 +642,6 @@ class _RoundIconButton extends StatelessWidget {
         onTap: onTap,
         child: SizedBox(width: 42, height: 42, child: Icon(icon, size: 20, color: AppTheme.ink)),
       ),
-    );
-  }
-}
-
-class _SkeletonCard extends StatelessWidget {
-  final double height;
-  const _SkeletonCard({required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppTheme.borderSubtle),
-      ),
-      child: const CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor),
     );
   }
 }

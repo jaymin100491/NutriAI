@@ -7,7 +7,6 @@ import '../../providers/diet_plan_provider.dart';
 import '../../widgets/craft/craft.dart';
 import 'daily_meals_screen.dart';
 import 'diet_plan_history_screen.dart';
-import '../chat/ai_chat_screen.dart';
 import '../main_navigation_screen.dart';
 
 class DietPlanListScreen extends ConsumerStatefulWidget {
@@ -34,11 +33,15 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
     final currentPlan = dietPlanState.currentPlan;
 
     return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('My Diet Plan'),
+        title: Text(
+          'Your week',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 22),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.history),
+            icon: const Icon(Icons.history_rounded),
             tooltip: 'Past plans',
             onPressed: () {
               Navigator.push(
@@ -48,7 +51,7 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
               final n = ref.read(dietPlanNotifierProvider.notifier);
               n.loadCurrentDietPlan();
@@ -101,27 +104,10 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
                         ],
                       ),
                     ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton(
-            heroTag: 'chat',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AiChatScreen()),
-              );
-            },
-            backgroundColor: AppTheme.secondaryColor,
-            child: const Icon(Icons.psychology),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: 'newplan',
-            onPressed: _showGeneratePlanDialog,
-            icon: const Icon(Icons.add),
-            label: const Text('New Plan'),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showGeneratePlanDialog,
+        icon: const Icon(Icons.auto_awesome),
+        label: const Text('Rebuild week'),
       ),
     );
   }
@@ -135,26 +121,51 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isFriday ? Colors.amber.shade50 : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isFriday ? Colors.amber.shade200 : Colors.grey.shade300),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isFriday ? AppTheme.accentColor.withValues(alpha: 0.35) : AppTheme.borderSubtle,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            isFriday ? 'Friday release day' : 'Weekly cadence',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Icon(
+                isFriday ? Icons.event_available_rounded : Icons.calendar_view_week_rounded,
+                size: 18,
+                color: isFriday ? AppTheme.accentColor : AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isFriday ? 'Friday release day' : 'Weekly cadence',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(note, style: const TextStyle(fontSize: 12, height: 1.35)),
-          if (current != null)
+          const SizedBox(height: 6),
+          Text(
+            note,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              height: 1.4,
+              color: AppTheme.textSecondaryColor,
+            ),
+          ),
+          if (current != null) ...[
+            const SizedBox(height: 6),
             Text(
               'This week: ${current['start']} → ${current['end']}',
-              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.ink,
+              ),
             ),
+          ],
           if (isFriday)
             Align(
               alignment: Alignment.centerLeft,
@@ -167,7 +178,7 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
                     );
                   }
                 },
-                child: const Text('Generate next week plan'),
+                child: const Text('Generate next week'),
               ),
             ),
         ],
@@ -181,42 +192,51 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1F6B4A), Color(0xFF2F8F63)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryColor.withValues(alpha: 0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             currentPlan.title,
-            style: const TextStyle(
+            style: GoogleFonts.plusJakartaSans(
               color: Colors.white,
               fontSize: 24,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            '${DateFormat('MMM dd').format(startDate)} - ${DateFormat('MMM dd, yyyy').format(endDate)}',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
+            '${DateFormat('MMM d').format(startDate)} – ${DateFormat('MMM d, yyyy').format(endDate)}',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14),
           ),
-          const SizedBox(height: 4),
-          Text(
-            '${currentPlan.durationDays} Days Plan',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            children: [
+              _HeaderChip(label: '${currentPlan.durationDays} days'),
+              _HeaderChip(label: '${currentPlan.targetCalories} kcal/day'),
+              _HeaderChip(
+                label: 'Ask Coach',
+                onTap: () => MainNavController.switchToTab(context, 3),
+              ),
+            ],
           ),
         ],
       ),
@@ -492,106 +512,144 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
       groupedMeals[meal.day]!.add(meal);
     }
 
-    return Container(
-      margin: const EdgeInsets.all(16),
+    final today = DateTime.now();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Daily Meal Plan',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          CraftSectionHeader(
+            title: 'This week’s days',
+            subtitle: '${groupedMeals.length} days · tap to open meals',
+            action: 'Coach',
+            onAction: () => MainNavController.switchToTab(context, 3),
           ),
           const SizedBox(height: 12),
           ...groupedMeals.entries.map((entry) {
             final day = entry.key;
             final meals = entry.value;
             final date = DateTime.parse(currentPlan.startDate).add(Duration(days: day - 1));
+            final isToday =
+                date.year == today.year && date.month == today.month && date.day == today.day;
+            final cals = meals.fold<int>(0, (sum, m) {
+              try {
+                return sum + ((m.recipe?.nutrition.calories as int?) ?? 0);
+              } catch (_) {
+                return sum;
+              }
+            });
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => DailyMealsScreen(
-                        day: day,
-                        date: DateFormat('yyyy-MM-dd').format(date),
-                        meals: meals,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Material(
+                color: isToday ? AppTheme.chipBg : Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DailyMealsScreen(
+                          day: day,
+                          date: DateFormat('yyyy-MM-dd').format(date),
+                          meals: meals,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isToday ? AppTheme.primaryColor.withValues(alpha: 0.35) : AppTheme.borderSubtle,
                       ),
                     ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            color: isToday ? AppTheme.primaryColor : AppTheme.chipBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                DateFormat('E').format(date).toUpperCase(),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: isToday ? Colors.white70 : AppTheme.primaryColor,
+                                ),
+                              ),
+                              Text(
+                                '${date.day}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: isToday ? Colors.white : AppTheme.primaryColor,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Day',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.primaryColor,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      DateFormat('EEEE, MMM d').format(date),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isToday)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryColor,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        'Today',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ),
-                            Text(
-                              '$day',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.primaryColor,
+                              const SizedBox(height: 4),
+                              Text(
+                                '${meals.length} meals · $cals kcal',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  color: AppTheme.textSecondaryColor,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              DateFormat('EEEE, MMM dd').format(date),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${meals.length} meals planned',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.textSecondaryColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: AppTheme.textSecondaryColor,
-                      ),
-                    ],
+                        const Icon(Icons.chevron_right_rounded, color: AppTheme.textSecondaryColor),
+                      ],
+                    ),
                   ),
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -601,14 +659,17 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Refresh this week’s plan'),
-        content: const Text(
-          'Rebuild your Mon–Sunday professional meal plan from labs, goals, and recent biometrics. '
-          'Past plans stay in history so you can track improvement.',
+        title: Text(
+          'Rebuild this week',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          'Recreate Mon–Sunday meals from your labs, goals, and calorie engine. Past weeks stay in history.',
+          style: GoogleFonts.plusJakartaSans(height: 1.4, color: AppTheme.textSecondaryColor),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
+          FilledButton(
             onPressed: () async {
               Navigator.pop(context);
               await ref.read(dietPlanNotifierProvider.notifier).generateWeekly(nextWeek: false);
@@ -621,10 +682,37 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
                 );
               }
             },
-            child: const Text('Generate'),
+            child: const Text('Rebuild'),
           ),
         ],
       ),
     );
+  }
+}
+
+class _HeaderChip extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+  const _HeaderChip({required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.plusJakartaSans(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+    if (onTap == null) return child;
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(20), child: child);
   }
 }
