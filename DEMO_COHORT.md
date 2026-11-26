@@ -18,7 +18,7 @@ Do **not** say: *“clinical study”*, *“IRB research”*, or *“we proved L
 | Role | Login |
 |------|--------|
 | Admin | `admin@nutriai.app` / `admin123` |
-| Seeded hero demo | `jaymin@nutriai.app` / `demo` |
+| Seeded hero demo (7 real Labcorp panels + Trends tab) | `jaymin@nutriai.app` / `demo` |
 | Live pitch (empty labs → PDF upload) | `jayminp@nutriai.app` / `demo` |
 | Any cohort persona | `{slug}@cohort.nutriai.app` / `demo` |
 

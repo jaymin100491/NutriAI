@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'diet_plan/diet_plan_list_screen.dart';
+import 'labs/lab_trends_screen.dart';
 import 'chat/ai_chat_screen.dart';
-import 'recipes/recipes_list_screen.dart';
 import 'profile/profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -19,8 +19,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = [
     const DashboardScreen(),
     const DietPlanListScreen(),
+    const LabTrendsScreen(),
     const AiChatScreen(),
-    const RecipesListScreen(),
     const ProfileScreen(),
   ];
 

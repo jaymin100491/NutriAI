@@ -326,6 +326,22 @@ async def lab_plan_job_status(current_user: dict = Depends(get_current_user)):
     return job
 
 
+@router.get("/trends")
+async def get_lab_trends(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    chronolab-rag style multi-visit lab trends for the Trends tab.
+    Deterministic math on stored panels (no LLM required).
+    """
+    from app.services.lab_trend_service import build_lab_trends
+
+    user_id = int(current_user["id"])
+    results = get_lab_results_for_user(db, user_id)
+    return build_lab_trends(results, patient_id=str(current_user.get("email") or user_id))
+
+
 @router.get("/latest", response_model=LabResultResponse)
 async def get_latest_lab_result_endpoint(
     current_user: dict = Depends(get_current_user),

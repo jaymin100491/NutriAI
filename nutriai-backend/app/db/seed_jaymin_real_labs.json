@@ -1,0 +1,1987 @@
+{
+  "demographics": {
+    "sex": "male",
+    "date_of_birth": "1991-04-10"
+  },
+  "panels": [
+    {
+      "id": 205431483,
+      "user_id": 0,
+      "test_date": "2023-07-27",
+      "test_type": "Labcorp Patient Report (1.pdf)",
+      "panel_title": "Labcorp Patient Report (1.pdf)",
+      "source": "pasted_panel",
+      "results": {
+        "tests": [
+          {
+            "name": "Hemoglobin A1c",
+            "value": 5.8,
+            "unit": "%",
+            "reference_range": "4.8-5.6",
+            "status": "high",
+            "category": "Diabetes Screening",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Creatinine",
+            "value": 1.16,
+            "unit": "mg/dL",
+            "reference_range": "0.76-1.27",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "eGFR",
+            "value": 86,
+            "unit": "mL/min/1.73",
+            "reference_range": ">59",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Cholesterol, Total",
+            "value": 222,
+            "unit": "mg/dL",
+            "reference_range": "100-199",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Triglycerides",
+            "value": 194,
+            "unit": "mg/dL",
+            "reference_range": "0-149",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "HDL Cholesterol",
+            "value": 36,
+            "unit": "mg/dL",
+            "reference_range": ">39",
+            "status": "low",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "VLDL Cholesterol Cal",
+            "value": 36,
+            "unit": "mg/dL",
+            "reference_range": "5-40",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "LDL Chol Calc (NIH)",
+            "value": 150,
+            "unit": "mg/dL",
+            "reference_range": "0-99",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "T. Chol/HDL Ratio",
+            "value": 6.2,
+            "unit": "ratio",
+            "reference_range": "0.0-5.0",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Patient Height (In)",
+            "value": 71,
+            "unit": "in",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Patient Weight (lbs)",
+            "value": 189.6,
+            "unit": "lbs",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Body Mass Index",
+            "value": 26.4,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Waist Circumference (In)",
+            "value": 38,
+            "unit": "in",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Systolic Blood Pressure",
+            "value": 136,
+            "unit": "mmHg",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Diastolic Blood Pressure",
+            "value": 98,
+            "unit": "mmHg",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Glucose",
+            "value": 93,
+            "unit": "mg/dL",
+            "reference_range": "70-99",
+            "status": "normal",
+            "category": "Metabolic Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Date of Birth",
+            "value": 4,
+            "unit": "/10/1991",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Alternate Control Number",
+            "value": 840568,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          }
+        ]
+      },
+      "interpretation": {
+        "summary": "Found 6 marker(s) outside optimal range that may benefit from dietary intervention. Hemoglobin A1c: 5.8 % (ref 4.8-5.6) \u2014 high; Cholesterol, Total: 222 mg/dL (ref 100-199) \u2014 high; Triglycerides: 194 mg/dL (ref 0-149) \u2014 high",
+        "concerns": [
+          "Hemoglobin A1c: 5.8 % (ref 4.8-5.6) \u2014 high",
+          "Cholesterol, Total: 222 mg/dL (ref 100-199) \u2014 high",
+          "Triglycerides: 194 mg/dL (ref 0-149) \u2014 high",
+          "HDL Cholesterol: 36 mg/dL (ref >39) \u2014 low",
+          "LDL Chol Calc (NIH): 150 mg/dL (ref 0-99) \u2014 high",
+          "T. Chol/HDL Ratio: 6.2 ratio (ref 0.0-5.0) \u2014 high"
+        ],
+        "recommendations": [
+          "Prioritize low glycemic index foods (legumes, whole grains, non-starchy vegetables)",
+          "Reduce refined carbohydrates and added sugars",
+          "Pair carbohydrates with protein or healthy fats at each meal",
+          "Increase soluble fiber intake (oats, beans, apples, psyllium)",
+          "Choose lean proteins and omega-3 rich fish 2-3x per week",
+          "Limit saturated fat to less than 7% of daily calories"
+        ],
+        "nutrition_relevant_count": 15,
+        "abnormal_count": 6
+      },
+      "labcorp": {
+        "account_name": "PDF / paste import",
+        "ordering_provider": "Imported report",
+        "patient_name": "Patient",
+        "pid": null,
+        "dashboard_category": "recently_viewed",
+        "date_of_service": "2023-07-27T12:00:00.000Z",
+        "ordered_date": "2023-07-27T12:00:00.000Z",
+        "report_date": "2023-07-27T12:00:00.000Z",
+        "is_detail_available": true,
+        "test_codes": [
+          {
+            "test_code": "import",
+            "test_name": "Labcorp Patient Report (1.pdf)"
+          }
+        ]
+      },
+      "import_note": "Imported from uploaded PDF or pasted panel. Markers are stored for history, goals, and weekly plan generation."
+    },
+    {
+      "id": 696939809,
+      "user_id": 0,
+      "test_date": "2024-07-12",
+      "test_type": "Labcorp Patient Report (2.pdf)",
+      "panel_title": "Labcorp Patient Report (2.pdf)",
+      "source": "pasted_panel",
+      "results": {
+        "tests": [
+          {
+            "name": "Glucose",
+            "value": 83,
+            "unit": "mg/dL",
+            "reference_range": "70-99",
+            "status": "normal",
+            "category": "Metabolic Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Cholesterol, Total",
+            "value": 220,
+            "unit": "mg/dL",
+            "reference_range": "100-199",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Triglycerides",
+            "value": 145,
+            "unit": "mg/dL",
+            "reference_range": "0-149",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "HDL Cholesterol",
+            "value": 44,
+            "unit": "mg/dL",
+            "reference_range": ">39",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "VLDL Cholesterol Cal",
+            "value": 36,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "LDL Chol Calc (NIH)",
+            "value": 150,
+            "unit": "mg/dL",
+            "reference_range": "0-99",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Patient Height (In)",
+            "value": 70,
+            "unit": "in",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Patient Weight (lbs)",
+            "value": 176,
+            "unit": "lbs",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Body Mass Index",
+            "value": 25.3,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Waist Circumference (In)",
+            "value": 36,
+            "unit": "in",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Systolic Blood Pressure",
+            "value": 134,
+            "unit": "mmHg",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Diastolic Blood Pressure",
+            "value": 88,
+            "unit": "mmHg",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Hemoglobin A1c",
+            "value": 5.8,
+            "unit": "%",
+            "reference_range": "4.8-5.6",
+            "status": "high",
+            "category": "Diabetes Screening",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Date of Birth",
+            "value": 4,
+            "unit": "/10/1991",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          }
+        ]
+      },
+      "interpretation": {
+        "summary": "Found 3 marker(s) outside optimal range that may benefit from dietary intervention. Cholesterol, Total: 220 mg/dL (ref 100-199) \u2014 high; LDL Chol Calc (NIH): 150 mg/dL (ref 0-99) \u2014 high; Hemoglobin A1c: 5.8 % (ref 4.8-5.6) \u2014 high",
+        "concerns": [
+          "Cholesterol, Total: 220 mg/dL (ref 100-199) \u2014 high",
+          "LDL Chol Calc (NIH): 150 mg/dL (ref 0-99) \u2014 high",
+          "Hemoglobin A1c: 5.8 % (ref 4.8-5.6) \u2014 high"
+        ],
+        "recommendations": [
+          "Increase soluble fiber intake (oats, beans, apples, psyllium)",
+          "Choose lean proteins and omega-3 rich fish 2-3x per week",
+          "Limit saturated fat to less than 7% of daily calories",
+          "Prioritize low glycemic index foods (legumes, whole grains, non-starchy vegetables)",
+          "Reduce refined carbohydrates and added sugars",
+          "Pair carbohydrates with protein or healthy fats at each meal"
+        ],
+        "nutrition_relevant_count": 11,
+        "abnormal_count": 3
+      },
+      "labcorp": {
+        "account_name": "PDF / paste import",
+        "ordering_provider": "Imported report",
+        "patient_name": "Patient",
+        "pid": null,
+        "dashboard_category": "recently_viewed",
+        "date_of_service": "2024-07-12T12:00:00.000Z",
+        "ordered_date": "2024-07-12T12:00:00.000Z",
+        "report_date": "2024-07-12T12:00:00.000Z",
+        "is_detail_available": true,
+        "test_codes": [
+          {
+            "test_code": "import",
+            "test_name": "Labcorp Patient Report (2.pdf)"
+          }
+        ]
+      },
+      "import_note": "Imported from uploaded PDF or pasted panel. Markers are stored for history, goals, and weekly plan generation."
+    },
+    {
+      "id": 709958360,
+      "user_id": 0,
+      "test_date": "2025-06-27",
+      "test_type": "Labcorp Patient Report (3.pdf)",
+      "panel_title": "Labcorp Patient Report (3.pdf)",
+      "source": "pasted_panel",
+      "results": {
+        "tests": [
+          {
+            "name": "Glucose",
+            "value": 80,
+            "unit": "mg/dL",
+            "reference_range": "70-99",
+            "status": "normal",
+            "category": "Metabolic Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Cholesterol, Total",
+            "value": 216,
+            "unit": "mg/dL",
+            "reference_range": "100-199",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Triglycerides",
+            "value": 152,
+            "unit": "mg/dL",
+            "reference_range": "0-149",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "HDL Cholesterol",
+            "value": 40,
+            "unit": "mg/dL",
+            "reference_range": ">39",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "VLDL Cholesterol Cal",
+            "value": 26,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "LDL Chol Calc (NIH)",
+            "value": 148,
+            "unit": "mg/dL",
+            "reference_range": "0-99",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Patient Height (In)",
+            "value": 70,
+            "unit": "in",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Patient Weight (lbs)",
+            "value": 172,
+            "unit": "lbs",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Body Mass Index",
+            "value": 24.7,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Waist Circumference (In)",
+            "value": 32,
+            "unit": "in",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Systolic Blood Pressure",
+            "value": 139,
+            "unit": "mmHg",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Diastolic Blood Pressure",
+            "value": 96,
+            "unit": "mmHg",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Hemoglobin A1c",
+            "value": 5.7,
+            "unit": "%",
+            "reference_range": "4.8-5.6",
+            "status": "high",
+            "category": "Diabetes Screening",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Date of Birth",
+            "value": 4,
+            "unit": "/10/1991",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Alternate Control Number",
+            "value": 1094165,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Current Result",
+            "value": 5.7,
+            "unit": "%",
+            "reference_range": "",
+            "status": "high",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          }
+        ]
+      },
+      "interpretation": {
+        "summary": "Found 4 marker(s) outside optimal range that may benefit from dietary intervention. Cholesterol, Total: 216 mg/dL (ref 100-199) \u2014 high; Triglycerides: 152 mg/dL (ref 0-149) \u2014 high; LDL Chol Calc (NIH): 148 mg/dL (ref 0-99) \u2014 high",
+        "concerns": [
+          "Cholesterol, Total: 216 mg/dL (ref 100-199) \u2014 high",
+          "Triglycerides: 152 mg/dL (ref 0-149) \u2014 high",
+          "LDL Chol Calc (NIH): 148 mg/dL (ref 0-99) \u2014 high",
+          "Hemoglobin A1c: 5.7 % (ref 4.8-5.6) \u2014 high"
+        ],
+        "recommendations": [
+          "Increase soluble fiber intake (oats, beans, apples, psyllium)",
+          "Choose lean proteins and omega-3 rich fish 2-3x per week",
+          "Limit saturated fat to less than 7% of daily calories",
+          "Prioritize low glycemic index foods (legumes, whole grains, non-starchy vegetables)",
+          "Reduce refined carbohydrates and added sugars",
+          "Pair carbohydrates with protein or healthy fats at each meal"
+        ],
+        "nutrition_relevant_count": 12,
+        "abnormal_count": 4
+      },
+      "labcorp": {
+        "account_name": "PDF / paste import",
+        "ordering_provider": "Imported report",
+        "patient_name": "Patient",
+        "pid": null,
+        "dashboard_category": "recently_viewed",
+        "date_of_service": "2025-06-27T12:00:00.000Z",
+        "ordered_date": "2025-06-27T12:00:00.000Z",
+        "report_date": "2025-06-27T12:00:00.000Z",
+        "is_detail_available": true,
+        "test_codes": [
+          {
+            "test_code": "import",
+            "test_name": "Labcorp Patient Report (3.pdf)"
+          }
+        ]
+      },
+      "import_note": "Imported from uploaded PDF or pasted panel. Markers are stored for history, goals, and weekly plan generation."
+    },
+    {
+      "id": 2070674098,
+      "user_id": 0,
+      "test_date": "2025-10-24",
+      "test_type": "Labcorp Patient Report (4.pdf)",
+      "panel_title": "Labcorp Patient Report (4.pdf)",
+      "source": "pasted_panel",
+      "results": {
+        "tests": [
+          {
+            "name": "Glucose",
+            "value": 87,
+            "unit": "mg/dL",
+            "reference_range": "70-99",
+            "status": "normal",
+            "category": "Metabolic Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "BUN",
+            "value": 10,
+            "unit": "mg/dL",
+            "reference_range": "6-20",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Creatinine",
+            "value": 0.98,
+            "unit": "mg/dL",
+            "reference_range": "0.76-1.27",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "eGFR",
+            "value": 104,
+            "unit": "mL/min/1.73",
+            "reference_range": ">59",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "BUN/Creatinine Ratio",
+            "value": 9,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Sodium",
+            "value": 140,
+            "unit": "mmol/L",
+            "reference_range": "134-144",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Potassium",
+            "value": 5.1,
+            "unit": "mmol/L",
+            "reference_range": "3.5-5.2",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Chloride",
+            "value": 101,
+            "unit": "mmol/L",
+            "reference_range": "96-106",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Carbon Dioxide, Total",
+            "value": 25,
+            "unit": "mmol/L",
+            "reference_range": "20-29",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Calcium",
+            "value": 9.9,
+            "unit": "mg/dL",
+            "reference_range": "8.7-10.2",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Protein, Total",
+            "value": 7.6,
+            "unit": "g/dL",
+            "reference_range": "6.0-8.5",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Albumin",
+            "value": 4.8,
+            "unit": "g/dL",
+            "reference_range": "4.1-5.1",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Globulin, Total",
+            "value": 2.8,
+            "unit": "g/dL",
+            "reference_range": "1.5-4.5",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Bilirubin, Total",
+            "value": 0.8,
+            "unit": "mg/dL",
+            "reference_range": "0.0-1.2",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Alkaline Phosphatase",
+            "value": 101,
+            "unit": "IU/L",
+            "reference_range": "47-123",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "AST (SGOT)",
+            "value": 25,
+            "unit": "IU/L",
+            "reference_range": "0-40",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "ALT (SGPT)",
+            "value": 24,
+            "unit": "IU/L",
+            "reference_range": "0-44",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Cholesterol, Total",
+            "value": 203,
+            "unit": "mg/dL",
+            "reference_range": "100-199",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Triglycerides",
+            "value": 175,
+            "unit": "mg/dL",
+            "reference_range": "0-149",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "HDL Cholesterol",
+            "value": 46,
+            "unit": "mg/dL",
+            "reference_range": ">39",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "VLDL Cholesterol Cal",
+            "value": 28,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "LDL Chol Calc (NIH)",
+            "value": 126,
+            "unit": "mg/dL",
+            "reference_range": "0-99",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Non-HDL Cholesterol",
+            "value": 157,
+            "unit": "mg/dL",
+            "reference_range": "0-129",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Date of Birth",
+            "value": 4,
+            "unit": "/10/1991",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Control ID",
+            "value": 1618830357,
+            "unit": "L",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Alternate Control Number",
+            "value": 1618830357,
+            "unit": "L",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          }
+        ]
+      },
+      "interpretation": {
+        "summary": "Found 4 marker(s) outside optimal range that may benefit from dietary intervention. Cholesterol, Total: 203 mg/dL (ref 100-199) \u2014 high; Triglycerides: 175 mg/dL (ref 0-149) \u2014 high; LDL Chol Calc (NIH): 126 mg/dL (ref 0-99) \u2014 high",
+        "concerns": [
+          "Cholesterol, Total: 203 mg/dL (ref 100-199) \u2014 high",
+          "Triglycerides: 175 mg/dL (ref 0-149) \u2014 high",
+          "LDL Chol Calc (NIH): 126 mg/dL (ref 0-99) \u2014 high",
+          "Non-HDL Cholesterol: 157 mg/dL (ref 0-129) \u2014 high"
+        ],
+        "recommendations": [
+          "Increase soluble fiber intake (oats, beans, apples, psyllium)",
+          "Choose lean proteins and omega-3 rich fish 2-3x per week",
+          "Limit saturated fat to less than 7% of daily calories"
+        ],
+        "nutrition_relevant_count": 16,
+        "abnormal_count": 4
+      },
+      "labcorp": {
+        "account_name": "PDF / paste import",
+        "ordering_provider": "Imported report",
+        "patient_name": "Patient",
+        "pid": null,
+        "dashboard_category": "recently_viewed",
+        "date_of_service": "2025-10-24T12:00:00.000Z",
+        "ordered_date": "2025-10-24T12:00:00.000Z",
+        "report_date": "2025-10-24T12:00:00.000Z",
+        "is_detail_available": true,
+        "test_codes": [
+          {
+            "test_code": "import",
+            "test_name": "Labcorp Patient Report (4.pdf)"
+          }
+        ]
+      },
+      "import_note": "Imported from uploaded PDF or pasted panel. Markers are stored for history, goals, and weekly plan generation."
+    },
+    {
+      "id": 326150331,
+      "user_id": 0,
+      "test_date": "2025-10-24",
+      "test_type": "Labcorp Patient Report (5.pdf)",
+      "panel_title": "Labcorp Patient Report (5.pdf)",
+      "source": "pasted_panel",
+      "results": {
+        "tests": [
+          {
+            "name": "WBC",
+            "value": 6.2,
+            "unit": "x10E3/uL",
+            "reference_range": "3.4-10.8",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "RBC",
+            "value": 5.42,
+            "unit": "x10E6/uL",
+            "reference_range": "4.14-5.80",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Hemoglobin",
+            "value": 15.7,
+            "unit": "g/dL",
+            "reference_range": "13.0-17.7",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Hematocrit",
+            "value": 48,
+            "unit": "%",
+            "reference_range": "37.5-51.0",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "MCV",
+            "value": 89,
+            "unit": "fL",
+            "reference_range": "79-97",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "MCH",
+            "value": 29,
+            "unit": "pg",
+            "reference_range": "26.6-33.0",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "MCHC",
+            "value": 32.7,
+            "unit": "g/dL",
+            "reference_range": "31.5-35.7",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "RDW",
+            "value": 12.5,
+            "unit": "%",
+            "reference_range": "11.6-15.4",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Platelets",
+            "value": 211,
+            "unit": "x10E3/uL",
+            "reference_range": "150-450",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Neutrophils",
+            "value": 56,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Lymphs",
+            "value": 32,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Monocytes",
+            "value": 8,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Eos",
+            "value": 2,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Basos",
+            "value": 1,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Neutrophils (Absolute)",
+            "value": 3.5,
+            "unit": "x10E3/uL",
+            "reference_range": "1.4-7.0",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Lymphs (Absolute)",
+            "value": 2,
+            "unit": "x10E3/uL",
+            "reference_range": "0.7-3.1",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Monocytes(Absolute)",
+            "value": 0.5,
+            "unit": "x10E3/uL",
+            "reference_range": "0.1-0.9",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Eos (Absolute)",
+            "value": 0.1,
+            "unit": "x10E3/uL",
+            "reference_range": "0.0-0.4",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Baso (Absolute)",
+            "value": 0,
+            "unit": "x10E3/uL",
+            "reference_range": "0.0-0.2",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Immature Granulocytes",
+            "value": 0,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Immature Grans (Abs)",
+            "value": 0,
+            "unit": "x10E3/uL",
+            "reference_range": "0.0-0.1",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Date of Birth",
+            "value": 4,
+            "unit": "/10/1991",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Control ID",
+            "value": 1618819396,
+            "unit": "L",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Alternate Control Number",
+            "value": 1618819396,
+            "unit": "L",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          }
+        ]
+      },
+      "interpretation": {
+        "summary": "All nutrition-relevant markers are within normal range. Maintain a balanced, whole-food diet.",
+        "concerns": [],
+        "recommendations": [
+          "Continue current balanced eating pattern",
+          "Stay hydrated and maintain regular meal timing"
+        ],
+        "nutrition_relevant_count": 1,
+        "abnormal_count": 0
+      },
+      "labcorp": {
+        "account_name": "PDF / paste import",
+        "ordering_provider": "Imported report",
+        "patient_name": "Patient",
+        "pid": null,
+        "dashboard_category": "recently_viewed",
+        "date_of_service": "2025-10-24T12:00:00.000Z",
+        "ordered_date": "2025-10-24T12:00:00.000Z",
+        "report_date": "2025-10-24T12:00:00.000Z",
+        "is_detail_available": true,
+        "test_codes": [
+          {
+            "test_code": "import",
+            "test_name": "Labcorp Patient Report (5.pdf)"
+          }
+        ]
+      },
+      "import_note": "Imported from uploaded PDF or pasted panel. Markers are stored for history, goals, and weekly plan generation."
+    },
+    {
+      "id": 1946775551,
+      "user_id": 0,
+      "test_date": "2026-06-16",
+      "test_type": "Labcorp Patient Report (6.pdf)",
+      "panel_title": "Labcorp Patient Report (6.pdf)",
+      "source": "pasted_panel",
+      "results": {
+        "tests": [
+          {
+            "name": "Hemoglobin A1c",
+            "value": 5.8,
+            "unit": "%",
+            "reference_range": "4.8-5.6",
+            "status": "high",
+            "category": "Diabetes Screening",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Creatinine",
+            "value": 1.07,
+            "unit": "mg/dL",
+            "reference_range": "0.76-1.27",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "eGFR",
+            "value": 104,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Cholesterol, Total",
+            "value": 207,
+            "unit": "mg/dL",
+            "reference_range": "100-199",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Triglycerides",
+            "value": 120,
+            "unit": "mg/dL",
+            "reference_range": "0-149",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "HDL Cholesterol",
+            "value": 40,
+            "unit": "mg/dL",
+            "reference_range": ">39",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "VLDL Cholesterol Cal",
+            "value": 21,
+            "unit": "mg/dL",
+            "reference_range": "5-40",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "LDL Chol Calc (NIH)",
+            "value": 146,
+            "unit": "mg/dL",
+            "reference_range": "0-99",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "T. Chol/HDL Ratio",
+            "value": 5.2,
+            "unit": "ratio",
+            "reference_range": "0.0-5.0",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Patient Height (In)",
+            "value": 59,
+            "unit": "in",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Patient Weight (lbs)",
+            "value": 180.8,
+            "unit": "lbs",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Body Mass Index",
+            "value": 36.5,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Waist Circumference (In)",
+            "value": 38,
+            "unit": "in",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Systolic Blood Pressure",
+            "value": 130,
+            "unit": "mmHg",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Diastolic Blood Pressure",
+            "value": 89,
+            "unit": "mmHg",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Biometrics",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Glucose",
+            "value": 95,
+            "unit": "mg/dL",
+            "reference_range": "70-99",
+            "status": "normal",
+            "category": "Metabolic Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Date of Birth",
+            "value": 4,
+            "unit": "/10/1991",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Alternate Control Number",
+            "value": 1198853,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Current Result",
+            "value": 1.07,
+            "unit": "mg/dL",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          }
+        ]
+      },
+      "interpretation": {
+        "summary": "Found 4 marker(s) outside optimal range that may benefit from dietary intervention. Hemoglobin A1c: 5.8 % (ref 4.8-5.6) \u2014 high; Cholesterol, Total: 207 mg/dL (ref 100-199) \u2014 high; LDL Chol Calc (NIH): 146 mg/dL (ref 0-99) \u2014 high",
+        "concerns": [
+          "Hemoglobin A1c: 5.8 % (ref 4.8-5.6) \u2014 high",
+          "Cholesterol, Total: 207 mg/dL (ref 100-199) \u2014 high",
+          "LDL Chol Calc (NIH): 146 mg/dL (ref 0-99) \u2014 high",
+          "T. Chol/HDL Ratio: 5.2 ratio (ref 0.0-5.0) \u2014 high"
+        ],
+        "recommendations": [
+          "Prioritize low glycemic index foods (legumes, whole grains, non-starchy vegetables)",
+          "Reduce refined carbohydrates and added sugars",
+          "Pair carbohydrates with protein or healthy fats at each meal",
+          "Increase soluble fiber intake (oats, beans, apples, psyllium)",
+          "Choose lean proteins and omega-3 rich fish 2-3x per week",
+          "Limit saturated fat to less than 7% of daily calories"
+        ],
+        "nutrition_relevant_count": 15,
+        "abnormal_count": 4
+      },
+      "labcorp": {
+        "account_name": "PDF / paste import",
+        "ordering_provider": "Imported report",
+        "patient_name": "Patient",
+        "pid": null,
+        "dashboard_category": "recently_viewed",
+        "date_of_service": "2026-06-16T12:00:00.000Z",
+        "ordered_date": "2026-06-16T12:00:00.000Z",
+        "report_date": "2026-06-16T12:00:00.000Z",
+        "is_detail_available": true,
+        "test_codes": [
+          {
+            "test_code": "import",
+            "test_name": "Labcorp Patient Report (6.pdf)"
+          }
+        ]
+      },
+      "import_note": "Imported from uploaded PDF or pasted panel. Markers are stored for history, goals, and weekly plan generation."
+    },
+    {
+      "id": 267645626,
+      "user_id": 0,
+      "test_date": "2026-11-03",
+      "test_type": "Labcorp Patient Report (7.pdf)",
+      "panel_title": "Labcorp Patient Report (7.pdf)",
+      "source": "pasted_panel",
+      "results": {
+        "tests": [
+          {
+            "name": "Glucose",
+            "value": 95,
+            "unit": "mg/dL",
+            "reference_range": "70-99",
+            "status": "normal",
+            "category": "Metabolic Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "BUN",
+            "value": 10,
+            "unit": "mg/dL",
+            "reference_range": "6-20",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Creatinine",
+            "value": 1.04,
+            "unit": "mg/dL",
+            "reference_range": "0.76-1.27",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "eGFR",
+            "value": 93,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "BUN/Creatinine Ratio",
+            "value": 10,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Kidney Function",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Sodium",
+            "value": 139,
+            "unit": "mmol/L",
+            "reference_range": "134-144",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Potassium",
+            "value": 5.1,
+            "unit": "mmol/L",
+            "reference_range": "3.5-5.2",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Chloride",
+            "value": 102,
+            "unit": "mmol/L",
+            "reference_range": "96-106",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Carbon Dioxide, Total",
+            "value": 24,
+            "unit": "mmol/L",
+            "reference_range": "20-29",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Calcium",
+            "value": 10.2,
+            "unit": "mg/dL",
+            "reference_range": "8.7-10.2",
+            "status": "normal",
+            "category": "Electrolytes",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Protein, Total",
+            "value": 7.8,
+            "unit": "g/dL",
+            "reference_range": "6.0-8.5",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Albumin",
+            "value": 4.9,
+            "unit": "g/dL",
+            "reference_range": "4.1-5.1",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Globulin, Total",
+            "value": 2.9,
+            "unit": "g/dL",
+            "reference_range": "1.5-4.5",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Bilirubin, Total",
+            "value": 0.9,
+            "unit": "mg/dL",
+            "reference_range": "0.0-1.2",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Alkaline Phosphatase",
+            "value": 96,
+            "unit": "IU/L",
+            "reference_range": "47-123",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "AST (SGOT)",
+            "value": 22,
+            "unit": "IU/L",
+            "reference_range": "0-40",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "ALT (SGPT)",
+            "value": 22,
+            "unit": "IU/L",
+            "reference_range": "0-44",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "WBC",
+            "value": 5.8,
+            "unit": "x10E3/uL",
+            "reference_range": "3.4-10.8",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "RBC",
+            "value": 5.51,
+            "unit": "x10E6/uL",
+            "reference_range": "4.14-5.80",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Hemoglobin",
+            "value": 16,
+            "unit": "g/dL",
+            "reference_range": "13.0-17.7",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Hematocrit",
+            "value": 47.8,
+            "unit": "%",
+            "reference_range": "37.5-51.0",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "MCV",
+            "value": 87,
+            "unit": "fL",
+            "reference_range": "79-97",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "MCH",
+            "value": 29,
+            "unit": "pg",
+            "reference_range": "26.6-33.0",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "MCHC",
+            "value": 33.5,
+            "unit": "g/dL",
+            "reference_range": "31.5-35.7",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "RDW",
+            "value": 12.4,
+            "unit": "%",
+            "reference_range": "11.6-15.4",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Platelets",
+            "value": 219,
+            "unit": "x10E3/uL",
+            "reference_range": "150-450",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Neutrophils",
+            "value": 55,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Lymphs",
+            "value": 34,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Monocytes",
+            "value": 7,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Eos",
+            "value": 3,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Basos",
+            "value": 1,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Neutrophils (Absolute)",
+            "value": 3.2,
+            "unit": "x10E3/uL",
+            "reference_range": "1.4-7.0",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Lymphs (Absolute)",
+            "value": 2,
+            "unit": "x10E3/uL",
+            "reference_range": "0.7-3.1",
+            "status": "normal",
+            "category": "CBC",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Monocytes(Absolute)",
+            "value": 0.4,
+            "unit": "x10E3/uL",
+            "reference_range": "0.1-0.9",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Eos (Absolute)",
+            "value": 0.2,
+            "unit": "x10E3/uL",
+            "reference_range": "0.0-0.4",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Baso (Absolute)",
+            "value": 0,
+            "unit": "x10E3/uL",
+            "reference_range": "0.0-0.2",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Immature Granulocytes",
+            "value": 0,
+            "unit": "%",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Immature Grans (Abs)",
+            "value": 0,
+            "unit": "x10E3/uL",
+            "reference_range": "0.0-0.1",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Cholesterol, Total",
+            "value": 232,
+            "unit": "mg/dL",
+            "reference_range": "100-199",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Triglycerides",
+            "value": 159,
+            "unit": "mg/dL",
+            "reference_range": "0-149",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "HDL Cholesterol",
+            "value": 48,
+            "unit": "mg/dL",
+            "reference_range": ">39",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "VLDL Cholesterol Cal",
+            "value": 21,
+            "unit": "",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "LDL Chol Calc (NIH)",
+            "value": 155,
+            "unit": "mg/dL",
+            "reference_range": "0-99",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Non-HDL Cholesterol",
+            "value": 184,
+            "unit": "mg/dL",
+            "reference_range": "0-129",
+            "status": "high",
+            "category": "Lipid Panel",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Date of Birth",
+            "value": 4,
+            "unit": "/10/1991",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Control ID",
+            "value": 1845073087,
+            "unit": "L",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          },
+          {
+            "name": "Alternate Control Number",
+            "value": 1845073087,
+            "unit": "L",
+            "reference_range": "",
+            "status": "normal",
+            "category": "Liver",
+            "test_code": "",
+            "nutrition_relevant": true
+          },
+          {
+            "name": "Current Result",
+            "value": 1.04,
+            "unit": "mg/dL",
+            "reference_range": "",
+            "status": "normal",
+            "category": "General",
+            "test_code": "",
+            "nutrition_relevant": false
+          }
+        ]
+      },
+      "interpretation": {
+        "summary": "Found 4 marker(s) outside optimal range that may benefit from dietary intervention. Cholesterol, Total: 232 mg/dL (ref 100-199) \u2014 high; Triglycerides: 159 mg/dL (ref 0-149) \u2014 high; LDL Chol Calc (NIH): 155 mg/dL (ref 0-99) \u2014 high",
+        "concerns": [
+          "Cholesterol, Total: 232 mg/dL (ref 100-199) \u2014 high",
+          "Triglycerides: 159 mg/dL (ref 0-149) \u2014 high",
+          "LDL Chol Calc (NIH): 155 mg/dL (ref 0-99) \u2014 high",
+          "Non-HDL Cholesterol: 184 mg/dL (ref 0-129) \u2014 high"
+        ],
+        "recommendations": [
+          "Increase soluble fiber intake (oats, beans, apples, psyllium)",
+          "Choose lean proteins and omega-3 rich fish 2-3x per week",
+          "Limit saturated fat to less than 7% of daily calories"
+        ],
+        "nutrition_relevant_count": 16,
+        "abnormal_count": 4
+      },
+      "labcorp": {
+        "account_name": "PDF / paste import",
+        "ordering_provider": "Imported report",
+        "patient_name": "Patient",
+        "pid": null,
+        "dashboard_category": "recently_viewed",
+        "date_of_service": "2026-11-03T12:00:00.000Z",
+        "ordered_date": "2026-11-03T12:00:00.000Z",
+        "report_date": "2026-11-03T12:00:00.000Z",
+        "is_detail_available": true,
+        "test_codes": [
+          {
+            "test_code": "import",
+            "test_name": "Labcorp Patient Report (7.pdf)"
+          }
+        ]
+      },
+      "import_note": "Imported from uploaded PDF or pasted panel. Markers are stored for history, goals, and weekly plan generation."
+    }
+  ]
+}

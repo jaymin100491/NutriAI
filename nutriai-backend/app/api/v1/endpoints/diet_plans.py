@@ -46,6 +46,10 @@ class PreferencesUpdate(BaseModel):
     dislikes: Optional[List[str]] = None
     cuisine_preferences: Optional[List[str]] = None
     allergies: Optional[List[str]] = None
+    sex: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    activity_level: Optional[str] = None
+    demographics_complete: Optional[bool] = None
     regenerate_plan: bool = True
 
 
@@ -60,6 +64,10 @@ async def get_preferences(current_user: dict = Depends(get_current_user)):
         "favorites": prefs.get("favorites", []),
         "substitutions": prefs.get("substitutions", {}),
         "preference_history": prefs.get("preference_history", []),
+        "sex": prefs.get("sex"),
+        "date_of_birth": prefs.get("date_of_birth"),
+        "activity_level": prefs.get("activity_level") or "moderate",
+        "demographics_complete": bool(prefs.get("demographics_complete")),
     }
 
 
@@ -220,6 +228,16 @@ async def update_preferences(
         prefs["cuisine_preferences"] = normalize_cuisine_list(request.cuisine_preferences)
     if request.allergies is not None:
         prefs["allergies"] = request.allergies
+    if request.sex is not None:
+        sex = request.sex.strip().lower()
+        prefs["sex"] = sex if sex in ("male", "female") else prefs.get("sex")
+    if request.date_of_birth is not None:
+        prefs["date_of_birth"] = request.date_of_birth.strip()[:10]
+    if request.activity_level is not None:
+        level = request.activity_level.strip().lower()
+        prefs["activity_level"] = level if level else "moderate"
+    if request.demographics_complete is not None:
+        prefs["demographics_complete"] = bool(request.demographics_complete)
 
     after = {
         "dietary_preference": prefs.get("dietary_preference", "omnivore"),
@@ -268,6 +286,10 @@ async def update_preferences(
             "allergies": prefs.get("allergies", []),
             "favorites": prefs.get("favorites", []),
             "substitutions": prefs.get("substitutions", {}),
+            "sex": prefs.get("sex"),
+            "date_of_birth": prefs.get("date_of_birth"),
+            "activity_level": prefs.get("activity_level") or "moderate",
+            "demographics_complete": bool(prefs.get("demographics_complete")),
             "preference_history": prefs.get("preference_history", []),
         },
         "plan_regenerated": plan is not None,

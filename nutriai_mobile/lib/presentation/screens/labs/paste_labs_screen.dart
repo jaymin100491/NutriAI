@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/diet_plan_provider.dart';
 import '../../providers/lab_result_provider.dart';
 import '../main_navigation_screen.dart';
+import '../onboarding/demographics_onboarding_screen.dart';
 
 class PasteLabsScreen extends ConsumerStatefulWidget {
   final bool allowSkip;
@@ -52,7 +53,7 @@ Hemoglobin A1c  6.2  %  4.8-5.6  High''';
       SnackBar(content: Text(_success!), duration: const Duration(seconds: 4)),
     );
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+      MaterialPageRoute(builder: (_) => const DemographicsOnboardingScreen()),
     );
   }
 

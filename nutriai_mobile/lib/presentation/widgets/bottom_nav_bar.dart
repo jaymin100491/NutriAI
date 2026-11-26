@@ -33,14 +33,14 @@ class BottomNavBar extends StatelessWidget {
             label: 'Plan',
           ),
           NavigationDestination(
+            icon: Icon(Icons.show_chart_outlined),
+            selectedIcon: Icon(Icons.show_chart_rounded),
+            label: 'Trends',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.auto_awesome_outlined),
             selectedIcon: Icon(Icons.auto_awesome),
             label: 'Coach',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book_rounded),
-            label: 'Recipes',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

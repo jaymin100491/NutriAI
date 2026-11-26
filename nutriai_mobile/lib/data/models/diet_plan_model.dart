@@ -42,6 +42,7 @@ class DietPlan extends Equatable {
   final List<MealPlan> meals;
   final ShoppingList shoppingList;
   final String? aiRationale;
+  final Map<String, dynamic>? nutritionEngine;
 
   const DietPlan({
     required this.id,
@@ -56,6 +57,7 @@ class DietPlan extends Equatable {
     required this.meals,
     required this.shoppingList,
     this.aiRationale,
+    this.nutritionEngine,
   });
 
   factory DietPlan.fromJson(Map<String, dynamic> json) {
@@ -87,6 +89,9 @@ class DietPlan extends Equatable {
           ? ShoppingList.fromJson(_asMap(shopping))
           : const ShoppingList(categories: {}),
       aiRationale: json['ai_rationale']?.toString(),
+      nutritionEngine: json['nutrition_engine'] is Map
+          ? _asMap(json['nutrition_engine'])
+          : null,
     );
   }
 

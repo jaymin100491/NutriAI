@@ -83,6 +83,7 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
                         children: [
                           _buildScheduleBanner(dietPlanState.schedule),
                           _buildPlanHeader(currentPlan),
+                          _buildEngineTargetsCard(currentPlan),
                           _buildAiRationaleCard(currentPlan),
                           _buildMacroTargets(currentPlan),
                           _buildGoals(currentPlan),
@@ -207,6 +208,78 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
               fontSize: 14,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEngineTargetsCard(dynamic currentPlan) {
+    final engine = currentPlan.nutritionEngine as Map<String, dynamic>?;
+    if (engine == null || engine.isEmpty) return const SizedBox.shrink();
+
+    final notes = (engine['notes'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final labs = engine['labs'] is Map
+        ? Map<String, dynamic>.from(engine['labs'] as Map)
+        : <String, dynamic>{};
+    final method = engine['method']?.toString() ?? '';
+    final bmr = engine['bmr'];
+    final tdee = engine['tdee'];
+    final labBits = labs.entries
+        .where((e) => e.value != null)
+        .map((e) => '${e.key}: ${e.value}')
+        .take(6)
+        .join(' · ');
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.teal.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.teal.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Nutrition engine',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade900),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Target ${currentPlan.targetCalories} kcal'
+            '${bmr != null ? ' · BMR $bmr' : ''}'
+            '${tdee != null ? ' · TDEE $tdee' : ''}'
+            '${method.isNotEmpty ? ' · $method' : ''}',
+            style: TextStyle(fontSize: 13.5, color: Colors.teal.shade900, height: 1.35),
+          ),
+          if (labBits.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Labs used: $labBits',
+              style: TextStyle(fontSize: 12.5, color: Colors.teal.shade800, height: 1.35),
+            ),
+          ],
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...notes.take(4).map(
+                  (n) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(color: Colors.teal.shade800)),
+                        Expanded(
+                          child: Text(
+                            n,
+                            style: TextStyle(fontSize: 12.5, color: Colors.teal.shade800, height: 1.35),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ],
         ],
       ),
     );
