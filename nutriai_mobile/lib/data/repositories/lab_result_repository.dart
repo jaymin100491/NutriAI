@@ -13,9 +13,19 @@ class LabResultRepository {
 
   Future<List<LabResult>> getAllLabResults() async {
     final response = await _dioClient.dio.get(ApiConstants.labResults);
-    final data = response.data as Map<String, dynamic>;
-    final results = data['lab_results'] as List<dynamic>;
-    return results.map((json) => LabResult.fromJson(json as Map<String, dynamic>)).toList();
+    final data = response.data is Map
+        ? Map<String, dynamic>.from(response.data as Map)
+        : <String, dynamic>{};
+    final results = data['lab_results'];
+    if (results is! List) return [];
+    return results
+        .whereType<Object>()
+        .map((json) => LabResult.fromJson(
+              json is Map<String, dynamic>
+                  ? json
+                  : Map<String, dynamic>.from(json as Map),
+            ))
+        .toList();
   }
 
   Future<LabResult> getLatestLabResult() async {
