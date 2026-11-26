@@ -16,7 +16,7 @@ from app.schemas.lab_result import (
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.db import repository as repo
-from app.db.store import set_user_goals
+from app.db.store import get_user_preferences, set_user_goals, set_user_preferences
 from app.services.lab_result_service import (
     get_lab_results_for_user,
     get_lab_result_by_id,
@@ -25,7 +25,7 @@ from app.services.lab_result_service import (
     import_portal_results_for_user,
     get_nutrition_relevant_history,
 )
-from app.services.lab_paste_parser import build_pasted_lab_result
+from app.services.lab_paste_parser import build_pasted_lab_result, extract_patient_demographics
 from app.services.pdf_lab_extractor import extract_text_from_pdf
 from app.services.goal_service import derive_goals_from_labs
 from app.services.ai_meal_generator import ai_meal_generation_enabled_for
@@ -161,6 +161,13 @@ def _ingest_lab_text_and_plan(
     )
     repo.upsert_lab_results(db, user_id, [panel])
     results = get_lab_results_for_user(db, user_id)
+
+    # Persist Sex/DOB from Labcorp headers so BMR/TDEE can use real demographics
+    demo = extract_patient_demographics(text)
+    if demo:
+        prefs = get_user_preferences(user_id)
+        prefs.update({k: v for k, v in demo.items() if v})
+        set_user_preferences(user_id, prefs)
 
     goals = derive_goals_from_labs(results, current_user)
     set_user_goals(user_id, goals)

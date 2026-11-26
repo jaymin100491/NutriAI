@@ -75,8 +75,12 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     AI_MEAL_GENERATION: bool = True  # prefer live AI chef; catalog is fallback
-    # Comma-separated emails allowed to use live AI meals. Others use catalog.
-    # Empty string = all users. Default keeps demo cost on the hero account only.
+    # new_users = OpenAI for real product users (not cohort seeds)
+    # allowlist = only AI_MEAL_USER_EMAILS
+    # all = every user with keys configured
+    # off = never call OpenAI for meals
+    AI_MEAL_MODE: str = "new_users"
+    # Used when AI_MEAL_MODE=allowlist (comma-separated). Ignored in new_users/all.
     AI_MEAL_USER_EMAILS: str = "jaymin@nutriai.app,jayminp@nutriai.app"
 
     # Legacy Labcorp/Okta fields kept optional for old code paths — unused in open-market demo

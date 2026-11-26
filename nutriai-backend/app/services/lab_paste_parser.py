@@ -192,6 +192,24 @@ def _extract_date(text: str) -> Optional[str]:
     return _parse_mdy(match.group("m"), match.group("d"), match.group("y"))
 
 
+def extract_patient_demographics(text: str) -> Dict[str, Any]:
+    """Pull Sex / DOB from Labcorp headers for the nutrition engine."""
+    out: Dict[str, Any] = {}
+    if not text or not isinstance(text, str):
+        return out
+    sex_m = re.search(r"\bSex:\s*(Male|Female)\b", text, re.IGNORECASE)
+    if sex_m:
+        out["sex"] = sex_m.group(1).strip().lower()
+    dob_m = re.search(r"\bDOB:\s*(\d{1,2}/\d{1,2}/\d{2,4})\b", text, re.IGNORECASE)
+    if dob_m:
+        parts = dob_m.group(1).split("/")
+        if len(parts) == 3:
+            iso = _parse_mdy(parts[0], parts[1], parts[2])
+            if iso:
+                out["date_of_birth"] = iso
+    return out
+
+
 def _stable_result_id(user_id: int, test_date: str, text: str) -> int:
     digest = hashlib.sha1(f"{user_id}:{test_date}:{text[:400]}".encode()).hexdigest()
     return int(digest[:8], 16) % 2_000_000_000 + 100_000_000
@@ -208,10 +226,18 @@ def _looks_like_header(line: str) -> bool:
     return False
 
 
+def _unglue_labcorp_site_codes(line: str) -> str:
+    """
+    pypdf often emits 'Glucose 0195' instead of 'Glucose 01 95' (site code + value).
+    Insert a space after performing-lab codes 01–09 when glued to the result.
+    """
+    return re.sub(r"\b(0[1-9])(\d+(?:\.\d+)?)\b", r"\1 \2", line)
+
+
 def _normalize_labcorp_lines(text: str) -> List[str]:
     """Collapse whitespace and merge Labcorp name-only rows with the next value row."""
     raw = [re.sub(r"\s+", " ", line).strip() for line in text.replace("\t", "  ").splitlines()]
-    raw = [line for line in raw if line]
+    raw = [_unglue_labcorp_site_codes(line) for line in raw if line]
     merged: List[str] = []
     i = 0
     while i < len(raw):
@@ -225,7 +251,7 @@ def _normalize_labcorp_lines(text: str) -> List[str]:
             and i + 1 < len(raw)
             and re.match(r"^[<>]?\d", raw[i + 1])
         ):
-            line = f"{line} {raw[i + 1]}"
+            line = _unglue_labcorp_site_codes(f"{line} {raw[i + 1]}")
             i += 1
         merged.append(line)
         i += 1

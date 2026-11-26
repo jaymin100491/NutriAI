@@ -73,19 +73,36 @@ def ai_meal_user_allowlist() -> List[str]:
 
 def ai_meal_generation_enabled_for(user: Optional[Dict[str, Any]] = None) -> bool:
     """
-    Live AI only when keys are configured AND the user is on the allowlist.
-    Default allowlist is jaymin@nutriai.app so cohort/other users stay on catalog.
-    Empty AI_MEAL_USER_EMAILS means all authenticated users may use AI.
+    Who gets live OpenAI meals:
+      - new_users (default): real product users; cohort seeds stay on catalog
+      - allowlist: only AI_MEAL_USER_EMAILS
+      - all: every user when keys exist
+      - off: never
     """
     if not ai_meal_generation_enabled():
         return False
-    allowlist = ai_meal_user_allowlist()
-    if not allowlist:
+    mode = str(getattr(settings, "AI_MEAL_MODE", "new_users") or "new_users").strip().lower()
+    if mode in ("off", "false", "0", "none"):
+        return False
+    if mode == "all":
         return True
     if not user:
         return False
     email = str(user.get("email") or "").strip().lower()
-    return email in allowlist
+    role = str(user.get("role") or "").strip().lower()
+    if mode == "allowlist":
+        allowlist = ai_meal_user_allowlist()
+        if not allowlist:
+            return True
+        return email in allowlist
+    # new_users — production default
+    if role == "admin":
+        return False
+    if email.endswith("@cohort.nutriai.app"):
+        return False
+    if email == "admin@nutriai.app":
+        return False
+    return bool(email)
 
 
 def normalize_cuisine_list(cuisines: Optional[List[str]]) -> List[str]:

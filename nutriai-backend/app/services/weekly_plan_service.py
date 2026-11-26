@@ -31,6 +31,7 @@ from app.services.ai_meal_generator import (
     generate_ai_week_meals,
     normalize_cuisine_list,
 )
+from app.services.nutrition_learning import persist_plan_decision, resolve_targets_for_user
 
 
 def week_bounds(ref: Optional[date] = None) -> Tuple[date, date]:
@@ -184,8 +185,8 @@ def generate_weekly_plan(
     """
     Generate a Mon–Sun professional weekly plan and archive the previous current plan.
 
-    Live product path: allowlisted users (default jaymin@nutriai.app) get on-the-fly
-    AI meals when keys are set. Everyone else uses the professional catalog.
+    Targets come from the production NutritionTargetEngine (BMR/TDEE + labs + learning).
+    New product users get OpenAI meals; cohort seeds stay on the catalog.
     """
     user_id = int(user["id"])
     use_ai = allow_ai and ai_meal_generation_enabled_for(user)
@@ -202,13 +203,39 @@ def generate_weekly_plan(
     if not goal_types:
         goal_types = ["increase_energy"]
     primary_goal = goal_types[0]
-    target_calories, macro_targets, goal_tags = _nutrition_for_goal(primary_goal, goals)
 
     bio = _biometric_adjustments(user_id)
-    target_calories = max(1400, min(2800, int(target_calories) + int(bio["calorie_delta"])))
-    goal_tags = list(set(list(goal_tags) + bio.get("extra_tags", [])))
+    labs: List[Dict[str, Any]] = []
+    tracking: List[Dict[str, Any]] = []
+    db = SessionLocal()
+    try:
+        labs = repo.get_lab_results(db, user_id)
+        tracking = repo.get_tracking_entries(db, user_id, days=14)
+    finally:
+        db.close()
 
     prefs = get_user_preferences(user_id)
+    # Merge demographics captured from PDF import / prefs into the user dict
+    user_for_engine = {
+        **user,
+        "sex": prefs.get("sex") or user.get("sex"),
+        "date_of_birth": prefs.get("date_of_birth") or user.get("date_of_birth"),
+        "age": prefs.get("age") or user.get("age"),
+        "activity_level": prefs.get("activity_level") or user.get("activity_level") or "moderate",
+    }
+    nutrition = resolve_targets_for_user(
+        user=user_for_engine,
+        goals=goals if goals else [{"goal_type": primary_goal}],
+        lab_results=labs,
+        tracking=tracking,
+        biometric_calorie_delta=int(bio.get("calorie_delta") or 0),
+    )
+    target_calories = int(nutrition.target_calories)
+    macro_targets = dict(nutrition.macro_targets)
+    goal_tags = list(set(list(nutrition.health_tags) + list(bio.get("extra_tags") or [])))
+    if not lab_summary:
+        lab_summary = nutrition.lab_summary
+
     dietary = prefs.get("dietary_preference") or user.get("dietary_preference") or "omnivore"
     dislikes = prefs.get("dislikes") or []
     cuisine_prefs = normalize_cuisine_list(
@@ -241,7 +268,7 @@ def generate_weekly_plan(
             week_start=start.isoformat(),
             weekdays=weekdays,
             lab_summary=lab_summary,
-            biometric_notes=bio.get("notes"),
+            biometric_notes=list(bio.get("notes") or []) + list(nutrition.notes),
         )
         if ai and ai.get("meals"):
             generation_source = "ai_live"
@@ -299,6 +326,7 @@ def generate_weekly_plan(
         if generation_source == "ai_live"
         else "Catalog engine used (AI keys not configured or AI unavailable)."
     )
+    engine_note = " ".join(nutrition.notes)
     plan = {
         "id": next_plan_id(),
         "user_id": user_id,
@@ -314,6 +342,7 @@ def generate_weekly_plan(
         "primary_goal": primary_goal,
         "target_calories": target_calories,
         "macro_targets": macro_targets,
+        "nutrition_engine": nutrition.as_engine_payload(),
         "cuisine_rotation": cuisine_prefs,
         "dietary_preference": dietary,
         "meals": meals,
@@ -324,6 +353,7 @@ def generate_weekly_plan(
             f"Fixed Mon–Sun plan for {start.isoformat()} → {end.isoformat()}. "
             f"Primary focus: {primary_label}. {source_note} "
             + (ai_rationale_extra + " " if ai_rationale_extra else "")
+            + engine_note + " "
             + " ".join(bio.get("notes", []))
             + (f" Labs: {lab_summary}" if lab_summary else "")
             + " Next week's plan is prepared every Friday from your biometrics + goals."
@@ -332,7 +362,9 @@ def generate_weekly_plan(
         "customization_count": 0,
         "professional": True,
     }
-    return set_user_plan(user_id, plan)
+    saved = set_user_plan(user_id, plan)
+    persist_plan_decision(user_id=user_id, plan=saved, targets=nutrition)
+    return saved
 
 
 def ensure_current_week_plan(user: Dict[str, Any]) -> Dict[str, Any]:
