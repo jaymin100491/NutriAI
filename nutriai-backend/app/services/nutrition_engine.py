@@ -254,7 +254,8 @@ def extract_body_profile(
     if activity not in ACTIVITY_MULTIPLIERS:
         activity = "moderate"
 
-    if bmi is None and height and weight and height > 0:
+    # Always recompute BMI from the chosen height/weight when possible
+    if height and weight and height > 0:
         bmi = round((weight / (height * height)) * 703, 1)
 
     return BodyProfile(
