@@ -1,12 +1,17 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../widgets/craft/craft.dart';
+import '../lab_results/lab_results_list_screen.dart';
 
-/// Production lab timeline — chronolab-rag math, coaching-grade UX.
+/// Chronolab-grade lab timeline — storytelling charts, provenance, motion.
 class LabTrendsScreen extends ConsumerStatefulWidget {
   const LabTrendsScreen({super.key});
 
@@ -19,6 +24,7 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
   String? _error;
   Map<String, dynamic>? _data;
   String _filter = 'all';
+  int? _expandedIndex;
 
   @override
   void initState() {
@@ -53,28 +59,10 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
       backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const _TrendsSkeleton()
             : _error != null
-                ? _errorState()
+                ? CraftErrorState(message: _error!, onRetry: _load)
                 : _buildBody(),
-      ),
-    );
-  }
-
-  Widget _errorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_outlined, size: 40, color: AppTheme.textSecondaryColor),
-            const SizedBox(height: 12),
-            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppTheme.textSecondaryColor)),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _load, child: const Text('Try again')),
-          ],
-        ),
       ),
     );
   }
@@ -101,42 +89,57 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
         : trends.where((t) => t['group']?.toString() == _filter).toList();
 
     if (trends.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            'Add at least two lab visits to unlock your timeline.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondaryColor, height: 1.4),
-          ),
+      return CraftEmptyState(
+        icon: Icons.timeline_outlined,
+        title: 'Your timeline starts with two visits',
+        body: 'Upload another lab panel to unlock marker trends, clinical context, and verified explanations.',
+        ctaLabel: 'Add lab results',
+        onCta: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const LabResultsListScreen()),
         ),
       );
     }
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(child: _heroHeader(data, audit)),
-        if (cards.isNotEmpty)
-          SliverToBoxAdapter(child: _snapshotStrip(cards)),
-        if (insights.isNotEmpty)
-          SliverToBoxAdapter(child: _insightsSection(insights)),
-        SliverToBoxAdapter(child: _filterRow()),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-          sliver: SliverList.separated(
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 14),
-            itemBuilder: (_, i) => _TrendCard(trend: filtered[i]),
+    return RefreshIndicator(
+      color: AppTheme.primaryColor,
+      onRefresh: _load,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: _hero(data, audit).craftIn()),
+          if (cards.isNotEmpty)
+            SliverToBoxAdapter(child: _snapshotStrip(cards).craftIn(delayMs: 60)),
+          if (insights.isNotEmpty)
+            SliverToBoxAdapter(child: _insights(insights, data).craftIn(delayMs: 110)),
+          SliverToBoxAdapter(child: _filters().craftIn(delayMs: 150)),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 36),
+            sliver: SliverList.separated(
+              itemCount: filtered.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              itemBuilder: (context, i) {
+                final globalIndex = trends.indexOf(filtered[i]);
+                return _MarkerStoryCard(
+                  trend: filtered[i],
+                  expanded: _expandedIndex == globalIndex,
+                  onToggle: () => setState(() {
+                    _expandedIndex = _expandedIndex == globalIndex ? null : globalIndex;
+                  }),
+                ).craftIn(delayMs: 160 + (i * 40).clamp(0, 280));
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _heroHeader(Map<String, dynamic> data, Map<String, dynamic> audit) {
+  Widget _hero(Map<String, dynamic> data, Map<String, dynamic> audit) {
     final passed = audit['safety_audit_passed'] == true;
+    final method = audit['method']?.toString() ?? 'deterministic_metrics_only';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -146,57 +149,36 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
                 child: Text(
                   'Your lab story',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 28,
+                    fontSize: 30,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
+                    letterSpacing: -0.8,
                     color: AppTheme.ink,
+                    height: 1.1,
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: _load,
-                icon: const Icon(Icons.refresh_rounded),
-                color: AppTheme.textSecondaryColor,
-              ),
+              _IconBtn(icon: Icons.refresh_rounded, onTap: _load),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
-            '${data['panel_count'] ?? 0} visits · ${data['trend_count'] ?? 0} markers tracked',
+            '${data['panel_count'] ?? 0} visits · ${data['trend_count'] ?? 0} markers · chronolab math',
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
+              fontSize: 13.5,
               color: AppTheme.textSecondaryColor,
             ),
           ),
           const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: passed ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  passed ? Icons.verified_rounded : Icons.info_outline_rounded,
-                  size: 18,
-                  color: passed ? AppTheme.successColor : AppTheme.warningColor,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    passed
-                        ? 'Verified explanation — numbers come only from your panels'
-                        : 'Review flagged — still coaching-safe teaching ranges',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.ink,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          TrustBanner(
+            verified: passed,
+            title: passed ? 'Hallucination-checked explanation' : 'Review flagged — still coaching-safe',
+            subtitle: passed
+                ? 'Every number below comes only from your stored panels. No invented values.'
+                : 'Teaching ranges still apply. Ask your clinician for medical decisions.',
+            sources: [
+              'engine: chronolab-rag',
+              method.replaceAll('_', ' '),
+            ],
           ),
         ],
       ),
@@ -204,92 +186,108 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
   }
 
   Widget _snapshotStrip(List<Map<String, dynamic>> cards) {
-    return SizedBox(
-      height: 118,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-        scrollDirection: Axis.horizontal,
-        itemCount: cards.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) {
-          final c = cards[i];
-          final tone = c['tone']?.toString() ?? 'neutral';
-          final bg = tone == 'attention'
-              ? const Color(0xFFFFF1E8)
-              : tone == 'positive'
-                  ? const Color(0xFFE9F7EF)
-                  : Colors.white;
-          final accent = tone == 'attention'
-              ? AppTheme.accentColor
-              : tone == 'positive'
-                  ? AppTheme.successColor
-                  : AppTheme.primaryColor;
-          return Container(
-            width: 156,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.borderSubtle),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  c['title']?.toString() ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondaryColor,
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+          child: CraftSectionHeader(
+            title: 'At a glance',
+            subtitle: 'Highest-signal markers right now',
+          ),
+        ),
+        SizedBox(
+          height: 128,
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            scrollDirection: Axis.horizontal,
+            itemCount: cards.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, i) {
+              final c = cards[i];
+              final tone = c['tone']?.toString() ?? 'neutral';
+              final accent = tone == 'attention'
+                  ? AppTheme.accentColor
+                  : tone == 'positive'
+                      ? AppTheme.successColor
+                      : AppTheme.primaryColor;
+              final bg = tone == 'attention'
+                  ? const Color(0xFFFFF1E8)
+                  : tone == 'positive'
+                      ? const Color(0xFFE9F7EF)
+                      : Colors.white;
+              return Container(
+                width: 168,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.borderSubtle),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                const Spacer(),
-                Text(
-                  c['value']?.toString() ?? '',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: accent,
-                    letterSpacing: -0.5,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c['title']?.toString() ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      c['value']?.toString() ?? '',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.6,
+                        color: accent,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      c['subtitle']?.toString() ?? '',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        height: 1.25,
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  c['subtitle']?.toString() ?? '',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    height: 1.25,
-                    color: AppTheme.textSecondaryColor,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _insightsSection(List<Map<String, dynamic>> insights) {
+  Widget _insights(List<Map<String, dynamic>> insights, Map<String, dynamic> data) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'What changed',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.ink,
-            ),
+          const CraftSectionHeader(
+            title: 'What changed',
+            subtitle: 'Multi-analyte reasoning from your panels',
           ),
-          const SizedBox(height: 10),
-          ...insights.map((insight) {
+          const SizedBox(height: 12),
+          ...insights.asMap().entries.map((entry) {
+            final insight = entry.value;
             final tone = insight['tone']?.toString() ?? 'neutral';
             final bar = tone == 'attention'
                 ? AppTheme.accentColor
@@ -310,7 +308,7 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
                 children: [
                   Container(
                     width: 4,
-                    height: 48,
+                    height: 56,
                     decoration: BoxDecoration(
                       color: bar,
                       borderRadius: BorderRadius.circular(4),
@@ -338,28 +336,11 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
                           ),
                         ),
                         if (cites.isNotEmpty) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Wrap(
                             spacing: 6,
-                            children: cites
-                                .map(
-                                  (c) => Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.chipBg,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      c,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppTheme.primaryColor,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
+                            runSpacing: 6,
+                            children: cites.map((c) => ProvenanceChip(label: c)).toList(),
                           ),
                         ],
                       ],
@@ -370,7 +351,7 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
             );
           }),
           Text(
-            dataDisclaimer(),
+            data['disclaimer']?.toString() ?? '',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 11.5,
               height: 1.35,
@@ -382,11 +363,7 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
     );
   }
 
-  String dataDisclaimer() {
-    return (_data?['disclaimer'] ?? '').toString();
-  }
-
-  Widget _filterRow() {
+  Widget _filters() {
     const filters = [
       ('all', 'All'),
       ('lipids', 'Lipids'),
@@ -395,41 +372,138 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
       ('body', 'Body'),
     ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: filters.map((f) {
-            final selected = _filter == f.$1;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(f.$2),
-                selected: selected,
-                onSelected: (_) => setState(() => _filter = f.$1),
-                selectedColor: AppTheme.primaryColor,
-                labelStyle: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: selected ? Colors.white : AppTheme.ink,
-                ),
-                backgroundColor: Colors.white,
-                side: BorderSide(color: selected ? AppTheme.primaryColor : AppTheme.borderSubtle),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                showCheckmark: false,
-              ),
-            );
-          }).toList(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CraftSectionHeader(
+            title: 'Marker timeline',
+            subtitle: 'Tap a card for clinical context',
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: filters.map((f) {
+                final selected = _filter == f.$1;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(f.$2),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _filter = f.$1),
+                    selectedColor: AppTheme.primaryColor,
+                    labelStyle: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: selected ? Colors.white : AppTheme.ink,
+                    ),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(
+                      color: selected ? AppTheme.primaryColor : AppTheme.borderSubtle,
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    showCheckmark: false,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _IconBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(side: BorderSide(color: AppTheme.borderSubtle)),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 20, color: AppTheme.textSecondaryColor),
         ),
       ),
     );
   }
 }
 
-class _TrendCard extends StatelessWidget {
-  final Map<String, dynamic> trend;
+class _TrendsSkeleton extends StatelessWidget {
+  const _TrendsSkeleton();
 
-  const _TrendCard({required this.trend});
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        const CraftShimmer(height: 36, width: 220),
+        const SizedBox(height: 10),
+        const CraftShimmer(height: 16, width: 180),
+        const SizedBox(height: 16),
+        const CraftShimmer(height: 72),
+        const SizedBox(height: 18),
+        SizedBox(
+          height: 118,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: 3,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, __) => const CraftShimmer(height: 118, width: 160),
+          ),
+        ),
+        const SizedBox(height: 18),
+        const CraftShimmer(height: 110),
+        const SizedBox(height: 12),
+        const CraftShimmer(height: 110),
+        const SizedBox(height: 18),
+        const CraftShimmer(height: 220),
+        const SizedBox(height: 12),
+        const CraftShimmer(height: 220),
+      ],
+    );
+  }
+}
+
+class _MarkerStoryCard extends StatefulWidget {
+  final Map<String, dynamic> trend;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  const _MarkerStoryCard({
+    required this.trend,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  @override
+  State<_MarkerStoryCard> createState() => _MarkerStoryCardState();
+}
+
+class _MarkerStoryCardState extends State<_MarkerStoryCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _draw;
+
+  @override
+  void initState() {
+    super.initState();
+    _draw = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _draw.forward();
+  }
+
+  @override
+  void dispose() {
+    _draw.dispose();
+    super.dispose();
+  }
 
   Color _statusColor(String status) {
     switch (status) {
@@ -439,15 +513,14 @@ class _TrendCard extends StatelessWidget {
         return const Color(0xFF1565C0);
       case 'In range':
         return AppTheme.successColor;
-      case 'Tracked':
-        return AppTheme.primaryColor;
       default:
-        return AppTheme.textSecondaryColor;
+        return AppTheme.primaryColor;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final trend = widget.trend;
     final points = (trend['points'] as List? ?? [])
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
@@ -458,235 +531,420 @@ class _TrendCard extends StatelessWidget {
     final direction = trend['direction']?.toString() ?? 'flat';
     final contextText = trend['clinical_context']?.toString() ?? '';
     final transition = trend['status_transition']?.toString() ?? '';
+    final sourceId = trend['source_id']?.toString() ?? trend['citation']?.toString() ?? '';
+    final boundSource = trend['bound_source']?.toString() ?? '';
+    final refLow = trend['reference_low'];
+    final refHigh = trend['reference_high'];
     final dirIcon = direction == 'up'
         ? Icons.trending_up_rounded
         : direction == 'down'
             ? Icons.trending_down_rounded
             : Icons.trending_flat_rounded;
+    final delta = trend['delta'];
+    final pct = trend['percent_change'];
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppTheme.borderSubtle),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+        onTap: widget.onToggle,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: AppTheme.borderSubtle),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.035),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      trend['test_name']?.toString() ?? '',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.ink,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          trend['test_name']?.toString() ?? '',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${trend['baseline_date']} → ${trend['latest_date']} · ${trend['observation_count'] ?? points.length} points',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: AppTheme.textSecondaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (showStatus)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: _statusColor(latestStatus).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        latestStatus,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: _statusColor(latestStatus),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${trend['baseline_date']} → ${trend['latest_date']}',
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${trend['latest_value']}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1.2,
+                      height: 1,
+                      color: AppTheme.ink,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      unit,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                         color: AppTheme.textSecondaryColor,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              if (showStatus)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: _statusColor(latestStatus).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    latestStatus,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: _statusColor(latestStatus),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.chipBg,
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Text(
-                '${trend['latest_value']}',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1,
-                  color: AppTheme.ink,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(
-                  unit,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondaryColor,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Icon(dirIcon, color: AppTheme.primaryColor, size: 22),
-              const SizedBox(width: 4),
-              Text(
-                '${trend['percent_change']}%',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Was ${trend['baseline_value']} $unit · $transition',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.5,
-              color: AppTheme.textSecondaryColor,
-            ),
-          ),
-          if (points.length >= 2) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 132,
-              child: LineChart(
-                LineChartData(
-                  minY: _minY(points),
-                  maxY: _maxY(points),
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    horizontalInterval: (_maxY(points) - _minY(points)) / 3,
-                    getDrawingHorizontalLine: (v) => FlLine(
-                      color: AppTheme.borderSubtle.withValues(alpha: 0.8),
-                      strokeWidth: 1,
-                    ),
-                  ),
-                  titlesData: const FlTitlesData(show: false),
-                  borderData: FlBorderData(show: false),
-                  lineTouchData: LineTouchData(
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipItems: (spots) => spots
-                          .map(
-                            (s) => LineTooltipItem(
-                              '${points[s.x.toInt()]['value']} $unit\n${points[s.x.toInt()]['date']}',
-                              GoogleFonts.plusJakartaSans(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: [
-                        for (var i = 0; i < points.length; i++)
-                          FlSpot(i.toDouble(), (points[i]['value'] as num).toDouble()),
+                    child: Row(
+                      children: [
+                        Icon(dirIcon, color: AppTheme.primaryColor, size: 18),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${delta != null && (delta as num) > 0 ? '+' : ''}$delta · $pct%',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
                       ],
-                      isCurved: true,
-                      curveSmoothness: 0.28,
-                      color: AppTheme.primaryColor,
-                      barWidth: 3.2,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (s, p, b, i) => FlDotCirclePainter(
-                          radius: 4.2,
-                          color: Colors.white,
-                          strokeWidth: 2.5,
-                          strokeColor: AppTheme.primaryColor,
-                        ),
-                      ),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primaryColor.withValues(alpha: 0.22),
-                            AppTheme.primaryColor.withValues(alpha: 0.02),
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          if (contextText.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.chipBg,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.menu_book_outlined, size: 16, color: AppTheme.primaryColor),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      contextText,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.5,
-                        height: 1.4,
-                        color: AppTheme.ink.withValues(alpha: 0.85),
-                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ],
+              const SizedBox(height: 6),
+              Text(
+                'Was ${trend['baseline_value']} $unit · $transition',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  color: AppTheme.textSecondaryColor,
+                ),
+              ),
+              if (points.length >= 2) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 148,
+                  child: AnimatedBuilder(
+                    animation: _draw,
+                    builder: (context, _) => _StoryChart(
+                      points: points,
+                      unit: unit,
+                      progress: Curves.easeOutCubic.transform(_draw.value),
+                      refLow: refLow is num ? refLow.toDouble() : null,
+                      refHigh: refHigh is num ? refHigh.toDouble() : null,
+                    ),
+                  ),
+                ),
+                if (refLow != null || refHigh != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Teaching range ${_fmtBound(refLow)}–${_fmtBound(refHigh)}'
+                          '${boundSource.isNotEmpty ? ' · $boundSource' : ''}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: AppTheme.textSecondaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+              AnimatedCrossFade(
+                firstChild: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Why this matters',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppTheme.primaryColor),
+                      const Spacer(),
+                      if (sourceId.isNotEmpty) ProvenanceChip(label: sourceId),
+                    ],
+                  ),
+                ),
+                secondChild: Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.chipBg,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Clinical context',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (sourceId.isNotEmpty) ProvenanceChip(label: sourceId),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          contextText.isNotEmpty
+                              ? contextText
+                              : 'Teaching range context for coaching. Not a diagnosis.',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            height: 1.45,
+                            color: AppTheme.ink.withValues(alpha: 0.85),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Tap again to collapse',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: AppTheme.textSecondaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                crossFadeState:
+                    widget.expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: 240.ms,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  double _minY(List<Map<String, dynamic>> points) {
-    final vals = points.map((p) => (p['value'] as num).toDouble()).toList();
-    final minV = vals.reduce((a, b) => a < b ? a : b);
-    final maxV = vals.reduce((a, b) => a > b ? a : b);
-    final pad = ((maxV - minV).abs() < 1 ? 1.0 : (maxV - minV) * 0.2);
-    return minV - pad;
+  String _fmtBound(dynamic v) {
+    if (v == null) return '—';
+    if (v is num) {
+      return v == v.roundToDouble() ? '${v.toInt()}' : v.toStringAsFixed(1);
+    }
+    return v.toString();
   }
+}
 
-  double _maxY(List<Map<String, dynamic>> points) {
+class _StoryChart extends StatelessWidget {
+  final List<Map<String, dynamic>> points;
+  final String unit;
+  final double progress;
+  final double? refLow;
+  final double? refHigh;
+
+  const _StoryChart({
+    required this.points,
+    required this.unit,
+    required this.progress,
+    this.refLow,
+    this.refHigh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final vals = points.map((p) => (p['value'] as num).toDouble()).toList();
-    final minV = vals.reduce((a, b) => a < b ? a : b);
-    final maxV = vals.reduce((a, b) => a > b ? a : b);
-    final pad = ((maxV - minV).abs() < 1 ? 1.0 : (maxV - minV) * 0.2);
-    return maxV + pad;
+    var minV = vals.reduce(math.min);
+    var maxV = vals.reduce(math.max);
+    if (refLow != null) minV = math.min(minV, refLow!);
+    if (refHigh != null) maxV = math.max(maxV, refHigh!);
+    final pad = ((maxV - minV).abs() < 1 ? 1.0 : (maxV - minV) * 0.22);
+    final yMin = minV - pad;
+    final yMax = maxV + pad;
+
+    final visibleCount = math.max(2, (points.length * progress).ceil());
+    final spots = <FlSpot>[
+      for (var i = 0; i < visibleCount; i++)
+        FlSpot(i.toDouble(), vals[i.clamp(0, vals.length - 1)]),
+    ];
+    // Interpolate last segment for smoother draw
+    if (progress < 1 && visibleCount < points.length) {
+      final prev = visibleCount - 1;
+      final next = visibleCount;
+      final t = (points.length * progress) - prev;
+      final y = vals[prev] + (vals[next] - vals[prev]) * t.clamp(0.0, 1.0);
+      spots[spots.length - 1] = FlSpot(prev + t, y);
+    }
+
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: (points.length - 1).toDouble(),
+        minY: yMin,
+        maxY: yMax,
+        clipData: const FlClipData.all(),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: (yMax - yMin) / 3,
+          getDrawingHorizontalLine: (v) => FlLine(
+            color: AppTheme.borderSubtle.withValues(alpha: 0.9),
+            strokeWidth: 1,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 22,
+              interval: 1,
+              getTitlesWidget: (value, meta) {
+                final i = value.round();
+                if (i < 0 || i >= points.length) return const SizedBox.shrink();
+                if (i != 0 && i != points.length - 1 && points.length > 3) {
+                  return const SizedBox.shrink();
+                }
+                final d = points[i]['date']?.toString() ?? '';
+                final short = d.length >= 10 ? d.substring(5) : d;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    short,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      color: AppTheme.textSecondaryColor,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        rangeAnnotations: (refLow != null || refHigh != null)
+            ? RangeAnnotations(
+                horizontalRangeAnnotations: [
+                  HorizontalRangeAnnotation(
+                    y1: refLow ?? yMin,
+                    y2: refHigh ?? yMax,
+                    color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  ),
+                ],
+              )
+            : null,
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touched) => touched.map((s) {
+              final i = s.x.round().clamp(0, points.length - 1);
+              return LineTooltipItem(
+                '${points[i]['value']} $unit\n${points[i]['date']}',
+                GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            curveSmoothness: 0.28,
+            color: AppTheme.primaryColor,
+            barWidth: 3.2,
+            isStrokeCapRound: true,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (s, p, b, i) {
+                final isLast = i == spots.length - 1;
+                return FlDotCirclePainter(
+                  radius: isLast ? 5.2 : 3.6,
+                  color: Colors.white,
+                  strokeWidth: isLast ? 3 : 2.2,
+                  strokeColor: isLast ? AppTheme.accentColor : AppTheme.primaryColor,
+                );
+              },
+            ),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.primaryColor.withValues(alpha: 0.22),
+                  AppTheme.primaryColor.withValues(alpha: 0.02),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

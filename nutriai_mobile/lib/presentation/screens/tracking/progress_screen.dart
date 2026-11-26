@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/tracking_model.dart';
 import '../../providers/tracking_provider.dart';
+import '../../widgets/craft/craft.dart';
 import 'tracking_form_screen.dart';
 
 class ProgressScreen extends ConsumerStatefulWidget {
@@ -41,39 +43,82 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         ],
       ),
       body: trackingState.isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? ListView(
+              padding: const EdgeInsets.all(20),
+              children: const [
+                CraftShimmer(height: 100),
+                SizedBox(height: 14),
+                CraftShimmer(height: 90),
+                SizedBox(height: 14),
+                CraftShimmer(height: 200),
+                SizedBox(height: 14),
+                CraftShimmer(height: 200),
+              ],
+            )
           : trackingState.error != null
-              ? Center(child: Text(trackingState.error!))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      progressAsync.when(
-                        data: (progressData) => Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (progressData != null) _buildStoryCard(progressData),
-                            const SizedBox(height: 16),
-                            if (progressData != null) _buildSummaryCards(progressData),
-                            const SizedBox(height: 16),
-                            if (progressData != null) _buildHighlights(progressData),
-                          ],
-                        ),
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => const SizedBox.shrink(),
+              ? CraftErrorState(
+                  message: trackingState.error!,
+                  onRetry: () {
+                    ref.read(trackingNotifierProvider.notifier).loadTrackingData();
+                    ref.invalidate(progressDataProvider);
+                  },
+                )
+              : trackingState.trackingData.isEmpty
+                  ? CraftEmptyState(
+                      icon: Icons.insights_outlined,
+                      title: 'Start your adherence story',
+                      body:
+                          'Log weight, blood pressure, or glucose to see trends alongside your meal coaching.',
+                      ctaLabel: 'Log metrics',
+                      onCta: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TrackingFormScreen()),
+                        ).then((_) {
+                          ref.read(trackingNotifierProvider.notifier).loadTrackingData();
+                          ref.invalidate(progressDataProvider);
+                        });
+                      },
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const TrustBanner(
+                            verified: true,
+                            title: 'Adherence from your logs',
+                            subtitle:
+                                'Charts use only biometrics you recorded in NutriAI — not estimated or invented values.',
+                            sources: ['source: daily tracking'],
+                          ).craftIn(),
+                          const SizedBox(height: 16),
+                          progressAsync.when(
+                            data: (progressData) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (progressData != null) _buildStoryCard(progressData).craftIn(delayMs: 40),
+                                const SizedBox(height: 16),
+                                if (progressData != null) _buildSummaryCards(progressData).craftIn(delayMs: 80),
+                                const SizedBox(height: 16),
+                                if (progressData != null) _buildHighlights(progressData).craftIn(delayMs: 110),
+                              ],
+                            ),
+                            loading: () => const CraftShimmer(height: 80),
+                            error: (_, __) => const SizedBox.shrink(),
+                          ),
+                          const SizedBox(height: 24),
+                          _buildWeightChart(trackingState.trackingData).craftIn(delayMs: 140),
+                          const SizedBox(height: 24),
+                          _buildBloodPressureChart(trackingState.trackingData).craftIn(delayMs: 170),
+                          const SizedBox(height: 24),
+                          _buildGlucoseChart(trackingState.trackingData).craftIn(delayMs: 200),
+                          const SizedBox(height: 24),
+                          _buildMilestones(trackingState.trackingData).craftIn(delayMs: 230),
+                          const SizedBox(height: 72),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                      _buildWeightChart(trackingState.trackingData),
-                      const SizedBox(height: 24),
-                      _buildBloodPressureChart(trackingState.trackingData),
-                      const SizedBox(height: 24),
-                      _buildGlucoseChart(trackingState.trackingData),
-                      const SizedBox(height: 24),
-                      _buildMilestones(trackingState.trackingData),
-                    ],
-                  ),
-                ),
+                    ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
@@ -93,26 +138,28 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   Widget _buildStoryCard(ProgressData progress) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppTheme.primaryColor.withOpacity(0.15), Colors.white],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.25)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Your improvement journey',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
             progress.story ??
                 'Track weight, blood pressure, and glucose alongside your meal plans.',
-            style: const TextStyle(height: 1.4, color: AppTheme.textSecondaryColor),
+            style: GoogleFonts.plusJakartaSans(
+              height: 1.45,
+              color: AppTheme.textSecondaryColor,
+              fontSize: 13.5,
+            ),
           ),
         ],
       ),

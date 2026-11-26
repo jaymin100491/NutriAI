@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/diet_plan_provider.dart';
+import '../../widgets/craft/craft.dart';
 import 'daily_meals_screen.dart';
 import 'diet_plan_history_screen.dart';
 import '../chat/ai_chat_screen.dart';
+import '../main_navigation_screen.dart';
 
 class DietPlanListScreen extends ConsumerStatefulWidget {
   const DietPlanListScreen({super.key});
@@ -55,39 +58,46 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
         ],
       ),
       body: dietPlanState.isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? ListView(
+              padding: const EdgeInsets.all(20),
+              children: const [
+                CraftShimmer(height: 88),
+                SizedBox(height: 14),
+                CraftShimmer(height: 160),
+                SizedBox(height: 14),
+                CraftShimmer(height: 120),
+                SizedBox(height: 14),
+                CraftShimmer(height: 200),
+              ],
+            )
           : dietPlanState.error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        dietPlanState.error!,
-                        style: const TextStyle(color: AppTheme.errorColor),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          ref.read(dietPlanNotifierProvider.notifier).loadCurrentDietPlan();
-                        },
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
+              ? CraftErrorState(
+                  message: dietPlanState.error!,
+                  onRetry: () {
+                    ref.read(dietPlanNotifierProvider.notifier).loadCurrentDietPlan();
+                  },
                 )
               : currentPlan == null
-                  ? const Center(child: Text('No diet plan found'))
+                  ? CraftEmptyState(
+                      icon: Icons.restaurant_menu_rounded,
+                      title: 'No plan yet',
+                      body:
+                          'Generate a week of meals from your labs, goals, and calorie engine — or ask Coach to build one.',
+                      ctaLabel: 'Talk to Coach',
+                      onCta: () => MainNavController.switchToTab(context, 3),
+                    )
                   : SingleChildScrollView(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildScheduleBanner(dietPlanState.schedule),
-                          _buildPlanHeader(currentPlan),
-                          _buildEngineTargetsCard(currentPlan),
-                          _buildAiRationaleCard(currentPlan),
-                          _buildMacroTargets(currentPlan),
-                          _buildGoals(currentPlan),
-                          _buildDaysList(currentPlan),
+                          _buildScheduleBanner(dietPlanState.schedule).craftIn(),
+                          _buildPlanHeader(currentPlan).craftIn(delayMs: 40),
+                          _buildEngineTargetsCard(currentPlan).craftIn(delayMs: 80),
+                          _buildAiRationaleCard(currentPlan).craftIn(delayMs: 110),
+                          _buildMacroTargets(currentPlan).craftIn(delayMs: 140),
+                          _buildGoals(currentPlan).craftIn(delayMs: 160),
+                          _buildDaysList(currentPlan).craftIn(delayMs: 180),
+                          const SizedBox(height: 88),
                         ],
                       ),
                     ),
@@ -230,55 +240,66 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
         .take(6)
         .join(' · ');
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.teal.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.teal.shade100),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Nutrition engine',
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade900),
+          TrustBanner(
+            verified: true,
+            title: 'Nutrition engine targets',
+            subtitle:
+                'Target ${currentPlan.targetCalories} kcal'
+                '${bmr != null ? ' · BMR $bmr' : ''}'
+                '${tdee != null ? ' · TDEE $tdee' : ''}'
+                '${method.isNotEmpty ? ' · $method' : ''}',
+            sources: [
+              if (method.isNotEmpty) method,
+              if (labBits.isNotEmpty) 'labs: $labBits',
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Target ${currentPlan.targetCalories} kcal'
-            '${bmr != null ? ' · BMR $bmr' : ''}'
-            '${tdee != null ? ' · TDEE $tdee' : ''}'
-            '${method.isNotEmpty ? ' · $method' : ''}',
-            style: TextStyle(fontSize: 13.5, color: Colors.teal.shade900, height: 1.35),
-          ),
-          if (labBits.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Labs used: $labBits',
-              style: TextStyle(fontSize: 12.5, color: Colors.teal.shade800, height: 1.35),
-            ),
-          ],
           if (notes.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ...notes.take(4).map(
-                  (n) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('• ', style: TextStyle(color: Colors.teal.shade800)),
-                        Expanded(
-                          child: Text(
-                            n,
-                            style: TextStyle(fontSize: 12.5, color: Colors.teal.shade800, height: 1.35),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.borderSubtle),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'How we got here',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 8),
+                  ...notes.take(4).map(
+                        (n) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('• ', style: TextStyle(color: AppTheme.primaryColor)),
+                              Expanded(
+                                child: Text(
+                                  n,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.5,
+                                    height: 1.4,
+                                    color: AppTheme.textSecondaryColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -293,23 +314,32 @@ class _DietPlanListScreenState extends ConsumerState<DietPlanListScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade100),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.borderSubtle),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.psychology, color: Colors.blue.shade700, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('AI Rationale', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-                const SizedBox(height: 4),
-                Text(rationale, style: TextStyle(fontSize: 13, color: Colors.blue.shade800, height: 1.4)),
-              ],
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: AppTheme.primaryColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Chef rationale',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 14.5),
+              ),
+              const Spacer(),
+              const ProvenanceChip(label: 'AI meals', icon: Icons.psychology_outlined),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            rationale,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.5,
+              height: 1.45,
+              color: AppTheme.textSecondaryColor,
             ),
           ),
         ],
