@@ -218,60 +218,68 @@ def _cook_card(meal: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _is_plan_cook_question(message: str) -> bool:
+    """Strict intent: only route to deterministic cook cards for clear plan/meal asks."""
+    msg = message.lower().strip()
+    meal_type = _detect_meal_type(msg) is not None
+    explicit = any(
+        p in msg
+        for p in (
+            "how to make",
+            "how do i make",
+            "how do i cook",
+            "how to cook",
+            "what's for",
+            "whats for",
+            "what is for",
+            "what do i eat",
+            "what am i eating",
+            "on my plan",
+            "in my plan",
+            "my plan",
+            "check my plan",
+            "show my plan",
+            "my breakfast",
+            "my lunch",
+            "my dinner",
+            "my snack",
+            "ingredients for",
+            "recipe for",
+            "steps for",
+            "cook my",
+            "make my",
+        )
+    )
+    day_word = any(w in msg for w in ("today", "tomorrow", "tonight", "tmrw"))
+    # "tomorrow breakfast" / "dinner today" etc.
+    day_plus_meal = day_word and meal_type
+    weekday_ask = any(
+        d in msg for d in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    ) and (meal_type or "meal" in msg or "plan" in msg or "eat" in msg)
+    return explicit or day_plus_meal or weekday_ask
+
+
 def _plan_grounded_answer(user_id: int, message: str) -> Optional[str]:
     """
-    Deterministic answers for plan/cook questions so we never invent dishes.
-    Returns None when the question is not about the user's meals.
+    Deterministic answers for clear plan/cook questions so we never invent dishes.
+    Returns None for general/random questions (those go to OpenAI + resilient fallback).
     """
+    if not _is_plan_cook_question(message):
+        return None
+
     plan = _current_plan(user_id)
     if not plan:
         return (
             "I don’t see an active week plan on your account yet. "
             "Open the Plan tab and generate your week first — then I can walk you through exact meals."
-        ) if any(
-            w in message.lower()
-            for w in ("plan", "breakfast", "lunch", "dinner", "cook", "make", "tomorrow", "today", "meal")
-        ) else None
-
-    msg = message.lower()
-    cookish = any(
-        w in msg
-        for w in (
-            "how to make",
-            "how do i make",
-            "how to cook",
-            "cook",
-            "recipe",
-            "ingredients",
-            "steps",
-            "prepare",
-            "what's for",
-            "whats for",
-            "what is for",
-            "what do i eat",
-            "on my plan",
-            "in my plan",
-            "my breakfast",
-            "my lunch",
-            "my dinner",
-            "tomorrow",
-            "today",
-            "check my plan",
         )
-    )
-    mentions_meal = _detect_meal_type(msg) is not None or any(
-        w in msg for w in ("meal", "plan", "eat", "food")
-    )
-    if not (cookish or mentions_meal):
-        return None
 
     today = date.today()
     target = _resolve_target_date(message, today)
-    meal_type = _detect_meal_type(msg)
+    meal_type = _detect_meal_type(message)
     day_meals = _meals_for_date(plan, target)
 
     if not day_meals:
-        # Fall back: match by weekday name inside plan
         weekday_name = target.strftime("%A")
         day_meals = [
             m
@@ -300,6 +308,94 @@ def _plan_grounded_answer(user_id: int, message: str) -> Optional[str]:
         "Open Plan → that day → the meal → **Start cooking** for the guided cook mode."
     )
     return header + cards + footer
+
+
+def _resilient_general_answer(user_id: int, message: str) -> str:
+    """
+    Demo-safe answer when LLMs are unavailable — never invents plan dishes,
+    still handles random / off-topic questions without "failing".
+    """
+    user = _get_user(user_id)
+    goals = get_goals_for_user(user_id, user)
+    plan = _current_plan(user_id)
+    lab = _get_latest_lab(user_id)
+    msg = message.lower().strip()
+
+    primary = goals[0].get("label", goals[0]["goal_type"]) if goals else "your health goals"
+    lab_bit = ""
+    if lab:
+        lab_bit = lab.get("interpretation", {}).get("summary") or ""
+        if lab_bit:
+            lab_bit = f" Your latest lab note: {lab_bit}"
+
+    tomorrow = date.today() + timedelta(days=1)
+    tomorrow_line = ""
+    if plan:
+        t_meals = _meals_for_date(plan, tomorrow)
+        if t_meals:
+            bits = [
+                f"{str(m.get('meal_type')).title()}: {_meal_recipe(m).get('name', 'meal')}"
+                for m in t_meals
+            ]
+            tomorrow_line = " Tomorrow on your plan — " + "; ".join(bits) + "."
+
+    # Off-topic / random demo prompts
+    off_topic = any(
+        w in msg
+        for w in (
+            "weather",
+            "joke",
+            "super bowl",
+            "who won",
+            "capital of",
+            "president",
+            "stock",
+            "bitcoin",
+            "movie",
+            "celebrity",
+        )
+    )
+    if off_topic or len(msg) < 2:
+        return (
+            f"I’m {user['first_name']}'s NutriAI Coach — I stay focused on *your* nutrition, labs, and meal plan "
+            f"(not general trivia).{lab_bit}\n\n"
+            f"Right now I’m optimizing for **{primary}**.{tomorrow_line}\n\n"
+            "Try me on something demo-ready:\n"
+            "• “How do I make tomorrow’s breakfast?”\n"
+            "• “What’s on my plan today?”\n"
+            "• “Why is this good for my cholesterol?”\n"
+            "• “Change tofu to paneer”"
+        )
+
+    # Nutrition / lifestyle without a specific meal ask
+    if any(w in msg for w in ("cholesterol", "ldl", "lipid")):
+        return (
+            f"For cholesterol coaching I’m using **your** labs and plan — not a generic internet tip.{lab_bit}\n\n"
+            "On your week I keep fiber-forward meals and limit saturated-fat heavy swaps unless you ask. "
+            f"Primary focus: **{primary}**.{tomorrow_line}\n\n"
+            "Ask “What’s for dinner tomorrow?” and I’ll pull the exact dish from your plan."
+        )
+    if any(w in msg for w in ("sugar", "glucose", "a1c", "diabetes")):
+        return (
+            f"For blood-sugar coaching I stay inside your goals and planned meals.{lab_bit}\n\n"
+            f"Priority: **{primary}**.{tomorrow_line}\n\n"
+            "I can walk you through tomorrow’s meals step-by-step — just ask."
+        )
+    if any(w in msg for w in ("water", "hydrat", "sleep", "exercise", "walk", "stress", "vitamin")):
+        return (
+            f"Happy to talk lifestyle in the context of **{primary}**.{lab_bit}\n\n"
+            "I won’t invent meals that aren’t on your plan. "
+            f"{tomorrow_line or 'Open Plan to see this week’s dishes.'}\n\n"
+            "Ask a plan question anytime — e.g. “How do I cook tomorrow’s lunch?”"
+        )
+
+    return (
+        f"Got it. I can answer that in coaching context for **{primary}**"
+        f"{' using your labs' if lab else ''}, and I only name dishes that are on your current week plan."
+        f"{tomorrow_line}\n\n"
+        "If you meant a meal question, try: “How do I make tomorrow’s breakfast?” "
+        "or “What’s on my plan for today?”"
+    )
 
 
 def _build_system_context(user_id: int) -> str:
@@ -340,12 +436,15 @@ def _build_system_context(user_id: int) -> str:
 TODAY'S DATE: {today}
 
 CRITICAL RULES (must follow):
-1. ONLY discuss meals that appear in CURRENT PLAN MEAL INVENTORY below.
+1. ONLY name meals that appear in CURRENT PLAN MEAL INVENTORY below.
 2. NEVER invent, substitute, or "suggest a typical breakfast" that is not on the inventory.
 3. If the user asks how to cook a meal, use that meal's ingredients (with quantities) and instructions exactly.
 4. If asked about a day/meal that is missing, say so and list what IS on the plan for nearby days.
-5. For non-meal nutrition questions, you may use labs/goals, but still do not invent plan dishes.
-6. Be warm, specific, and action-oriented. Wellness coaching only — not a medical diagnosis.
+5. For non-meal nutrition / lifestyle questions, answer helpfully using labs/goals — still do not invent plan dishes.
+6. For off-topic / random questions (weather, sports, trivia, jokes): answer briefly in one witty line,
+   then steer back to this user's coaching (labs, goals, or tomorrow's real plan meals). Never pretend
+   a random topic is a meal on their plan.
+7. Be warm, specific, and demo-ready. Wellness coaching only — not a medical diagnosis.
 
 USER PROFILE:
 - Name: {user['first_name']} {user['last_name']}
@@ -524,12 +623,19 @@ async def _call_claude(system: str, history: List[Dict], message: str) -> Option
 
 
 async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
-    """Process a user chat message — plan-grounded first, then OpenAI."""
+    """
+    Process a user chat message.
+
+    Paths (demo-safe):
+      1) Structural plan edits (swap / regenerate / priorities)
+      2) Strict cook/plan questions → deterministic inventory (never invent dishes)
+      3) Everything else (incl. random demo asks) → OpenAI/Claude with full plan context
+      4) If LLMs fail → resilient coaching fallback (still never invents dishes)
+    """
     add_chat_message(user_id, "user", message)
 
     rule_result = _rule_based_actions(user_id, message)
 
-    # Deterministic cook / "what's on my plan" answers beat free-form LLM
     grounded = None
     if not rule_result["plan_modified"]:
         grounded = _plan_grounded_answer(user_id, message)
@@ -537,7 +643,7 @@ async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
     system = _build_system_context(user_id)
     history = get_chat_history(user_id)
 
-    # Prefer OpenAI for accurate grounded coaching; Claude as backup
+    # Always try LLM for general / random questions (and as enrichment never overrides grounded cook cards)
     llm_response = await _call_openai(system, history, message)
     if not llm_response:
         llm_response = await _call_claude(system, history, message)
@@ -546,18 +652,19 @@ async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
         final_message = rule_result["message"]
         if llm_response:
             final_message = final_message + "\n\n" + llm_response
+        path = "plan_edit"
     elif grounded:
-        # Cook / plan questions: deterministic inventory only — never invent dishes
         final_message = grounded
+        path = "plan_grounded"
     elif rule_result.get("handled") and rule_result["message"]:
         final_message = rule_result["message"]
+        path = "greeting"
     elif llm_response:
         final_message = llm_response
+        path = "llm"
     else:
-        final_message = (
-            "I can help with your actual plan — try “How do I make tomorrow’s breakfast?” "
-            "or “What’s for dinner today?”"
-        )
+        final_message = _resilient_general_answer(user_id, message)
+        path = "resilient_fallback"
 
     suggestions = rule_result["suggestions"]
     metadata = {
@@ -565,6 +672,7 @@ async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
         "goals_updated": rule_result["goals_updated"],
         "suggestions": suggestions,
         "grounded": bool(grounded),
+        "path": path,
     }
 
     add_chat_message(user_id, "assistant", final_message, metadata)
