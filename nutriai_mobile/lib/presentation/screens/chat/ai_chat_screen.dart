@@ -125,7 +125,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
   Widget _buildEmptyState(List<String> suggestions) {
     final defaults = [
       'How do I make tomorrow’s breakfast?',
-      'Replace this week with Indian food',
+      'Indian food this week',
       'What’s on my plan for today?',
     ];
     final chips = suggestions.isNotEmpty ? suggestions : defaults;

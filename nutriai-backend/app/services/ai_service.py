@@ -23,25 +23,35 @@ from app.services.goal_service import get_goals_for_user, parse_priority_from_me
 from app.services.recipe_catalog import get_substitution_options
 from app.services.weekly_plan_service import generate_weekly_plan
 
+# Longer phrases first so "middle eastern" / "south indian" win over shorter tokens.
 _KNOWN_CUISINES = [
-    "indian",
-    "mexican",
-    "thai",
-    "mediterranean",
-    "chinese",
-    "japanese",
-    "italian",
-    "korean",
-    "american",
     "middle eastern",
-    "asian",
+    "south indian",
+    "north indian",
+    "mediterranean",
     "vietnamese",
-    "greek",
-    "french",
-    "spanish",
     "ethiopian",
     "caribbean",
+    "japanese",
+    "mexican",
+    "italian",
+    "chinese",
+    "american",
+    "korean",
+    "indian",
+    "french",
+    "spanish",
+    "greek",
+    "asian",
+    "thai",
+    "desi",  # maps to Indian
 ]
+
+_CUISINE_ALIASES = {
+    "desi": "Indian",
+    "south indian": "Indian",
+    "north indian": "Indian",
+}
 
 SWAP_PATTERNS = [
     r"(?:change|swap|replace|substitute)\s+(\w+)\s+(?:to|with|for)\s+(\w+)",
@@ -549,39 +559,72 @@ def _detect_swap(message: str) -> Optional[Tuple[str, str]]:
     return None
 
 
+def _extract_cuisine_mention(message: str) -> Optional[str]:
+    msg = message.lower()
+    for c in sorted(_KNOWN_CUISINES, key=len, reverse=True):
+        if re.search(rf"\b{re.escape(c)}\b", msg):
+            if c in _CUISINE_ALIASES:
+                return _CUISINE_ALIASES[c]
+            return " ".join(w.capitalize() for w in c.split())
+    return None
+
+
 def _detect_cuisine_week_request(message: str) -> Optional[str]:
     """
-    Detect 'make this week all Indian / only Mexican food' style rebuilds.
-    Returns canonical cuisine name or None.
+    Natural-language cuisine preference → rebuild this week's plan.
+
+    Users should not need a magic phrase. Examples that should work:
+      - "Indian food"
+      - "I want Mexican this week"
+      - "Can we do Thai?"
+      - "Make my meals Indian"
+      - "Switch to Mediterranean"
     """
-    msg = message.lower()
-    found = None
-    for c in sorted(_KNOWN_CUISINES, key=len, reverse=True):
-        if c in msg:
-            found = " ".join(w.capitalize() for w in c.split())
-            break
+    msg = message.lower().strip()
+    found = _extract_cuisine_mention(message)
     if not found:
         return None
-    intent = any(
+
+    # Leave pure cook / explain questions alone (existing plan dishes)
+    if any(
         p in msg
         for p in (
-            "only",
-            "just have",
-            "replace",
-            "all plan",
-            "all meals",
-            "entire week",
-            "this week",
-            "for the week",
-            "switch to",
-            "change to",
-            "make all",
-            "make everything",
-            "cuisine",
-            "food for",
+            "how to make",
+            "how do i make",
+            "how do i cook",
+            "how to cook",
+            "ingredients for",
+            "steps for",
+            "recipe for",
         )
-    )
-    return found if intent else None
+    ):
+        return None
+    # Nutrition opinion questions — not a rebuild
+    if re.search(r"\b(why is|is .+ good|good for|bad for|healthy for)\b", msg) and "?" in msg:
+        if not re.search(r"\b(want|prefer|switch|change|replace|make my|give me)\b", msg):
+            return None
+
+    words = re.findall(r"[a-z0-9]+", msg)
+    # Short preference: "Indian", "Indian food", "Mexican please", "more Thai"
+    if len(words) <= 6:
+        return found
+
+    # Any natural preference / plan language around a cuisine
+    if re.search(
+        r"\b(want|prefer|like|love|crave|feel like|switch|change|replace|make|"
+        r"set|give me|go |do |try|keep|stick to|focus on|only|just|all|"
+        r"entire|week|meals?|plans?|diet|food|cuisine|dishes|instead)\b",
+        msg,
+    ):
+        return found
+
+    # "Indian food for dinner all week" style without verbs above still caught by food+cuisine
+    if re.search(rf"\b{re.escape(found.lower())}\b.{{0,40}}\b(food|meals?|cuisine|dishes|diet)\b", msg):
+        return found
+    if re.search(rf"\b(food|meals?|cuisine|dishes|diet)\b.{{0,40}}\b{re.escape(found.lower())}\b", msg):
+        return found
+
+    return None
 
 
 def _is_greeting_only(message: str) -> bool:
@@ -636,10 +679,12 @@ def _rule_based_actions(user_id: int, message: str) -> Dict[str, Any]:
                 else f"Applied for **this week only** — your long-term cuisine prefs are unchanged."
             )
             response_parts.append(
-                f"Done — I rebuilt your Mon–Sun plan as an **all-{cuisine}** week "
-                f"({plan.get('target_calories')} kcal/day, source: {plan.get('generation_source', 'engine')}).\n\n"
+                f"Got it — I heard you want **{cuisine}** food, so I rebuilt your Mon–Sun plan "
+                f"around that ({plan.get('target_calories')} kcal/day · {plan.get('generation_source', 'engine')}).\n\n"
                 f"{week_note}\n"
-                f"Open the **Plan** tab to see every meal.{sample_txt}"
+                f"Open the **Plan** tab for every meal.{sample_txt}\n\n"
+                "You can say this naturally anytime — e.g. “Thai food”, “I want Mexican”, "
+                "or “switch to Mediterranean” — no special wording needed."
             )
         except Exception as e:
             response_parts.append(
@@ -702,7 +747,7 @@ def _rule_based_actions(user_id: int, message: str) -> Dict[str, Any]:
             f"Hi {user['first_name']} — I’m your Coach grounded in **your** labs and current week plan.\n\n"
             "Ask things like:\n"
             "• “How do I make tomorrow’s breakfast?”\n"
-            "• “Replace this week with Indian food”\n"
+            "• “Indian food” or “I want Mexican this week”\n"
             "• “Change tofu to paneer”\n"
             "• “Why is this meal good for my cholesterol?”"
             + sample
@@ -721,8 +766,8 @@ def _get_quick_suggestions(user_id: int) -> List[str]:
     plan = _current_plan(user_id)
     suggestions = [
         "How do I make tomorrow’s breakfast?",
+        "Indian food this week",
         "What’s on my plan for today?",
-        "Change tofu to paneer in my plan",
     ]
     if plan:
         tomorrow = date.today() + timedelta(days=1)
