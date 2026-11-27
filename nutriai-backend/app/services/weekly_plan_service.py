@@ -26,6 +26,18 @@ from app.db import repository as repo
 from app.services.professional_meals import build_professional_catalog, PROFESSIONAL_MEALS
 from app.services.goal_service import get_goals_for_user, GOAL_DEFINITIONS
 from app.services.diet_plan_engine import _nutrition_for_goal, _build_shopping_list, MEAL_TYPES
+
+_MEAL_ORDER = {m: i for i, m in enumerate(MEAL_TYPES)}
+
+
+def _meal_sort_key(meal: Dict[str, Any]) -> Tuple[str, int]:
+    """Breakfast → lunch → dinner → snack (never alphabetical dinner-before-lunch)."""
+    mt = str(meal.get("meal_type") or "").lower()
+    return (str(meal.get("date") or ""), _MEAL_ORDER.get(mt, 99))
+
+
+def _sort_meals(meals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return sorted(meals, key=_meal_sort_key)
 from app.services.ai_meal_generator import (
     ai_meal_generation_enabled_for,
     generate_ai_week_meals,
@@ -176,7 +188,31 @@ def _filter_professional(
     ranked = [r for _, r in scored]
     if ranked:
         return ranked
-    # Strict fallback — same diet only, never open the full (meat) catalog
+
+    # Exclusive cuisine: never silently fill with unrelated cuisines
+    if exclusive_cuisine and cuisine_set:
+        cuisine_only = [
+            r
+            for r in catalog
+            if meal_type in r.get("meal_type", [])
+            and (
+                r.get("cuisine_type") in cuisine_set
+                or any(c.lower() in (r.get("name") or "").lower() for c in cuisine_set)
+            )
+        ]
+        if cuisine_only:
+            return cuisine_only
+        # Last resort: any meal_type match for that cuisine (ignore diet tags)
+        any_cuisine = [
+            r
+            for r in catalog
+            if r.get("cuisine_type") in cuisine_set
+            or any(c.lower() in (r.get("name") or "").lower() for c in cuisine_set)
+        ]
+        if any_cuisine:
+            return any_cuisine
+
+    # Prefer mode fallback — same diet only, never open the full (meat) catalog
     return [
         r for r in catalog
         if meal_type in r.get("meal_type", []) and _recipe_matches_diet(r, dietary)
@@ -297,7 +333,13 @@ def generate_weekly_plan(
             for m in ai["meals"]:
                 by_day.setdefault(int(m["day"]), []).append(m)
             while day <= end:
-                for m in by_day.get(day_num, []):
+                day_meals = by_day.get(day_num, [])
+                # Enforce breakfast → lunch → dinner → snack even if AI returns shuffled
+                day_meals = sorted(
+                    day_meals,
+                    key=lambda m: _MEAL_ORDER.get(str(m.get("meal_type") or "").lower(), 99),
+                )
+                for m in day_meals:
                     item = deepcopy(m)
                     item["date"] = day.isoformat()
                     item["weekday"] = day.strftime("%A")
@@ -371,7 +413,7 @@ def generate_weekly_plan(
         "cuisine_rotation": cuisine_prefs,
         "cuisine_mode": "exclusive" if exclusive_cuisine else "prefer",
         "dietary_preference": dietary,
-        "meals": meals,
+        "meals": _sort_meals(meals),
         "shopping_list": _build_shopping_list(meals),
         "biometric_notes": bio.get("notes", []),
         "generation_source": generation_source,
@@ -512,10 +554,7 @@ def regenerate_remaining_days(
             have.add(key)
         d += timedelta(days=1)
 
-    merged_meals = sorted(
-        keep + future,
-        key=lambda m: (str(m.get("date") or ""), str(m.get("meal_type") or "")),
-    )
+    merged_meals = _sort_meals(keep + future)
     plan = deepcopy(existing)
     plan["meals"] = merged_meals
     plan["dietary_preference"] = dietary

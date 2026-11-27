@@ -41,6 +41,7 @@ class ApiConstants {
   static const String recipes = '$apiV1/recipes';
 
   static const String dailyTracking = '$apiV1/tracking/daily';
+  static const String mealAdherence = '$apiV1/tracking/meal-adherence';
   static const String progress = '$apiV1/tracking/progress';
 
   static const String goals = '$apiV1/goals';

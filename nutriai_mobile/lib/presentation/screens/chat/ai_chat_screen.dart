@@ -96,11 +96,52 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                     padding: const EdgeInsets.all(16),
                     itemCount: chatState.messages.length + (chatState.isLoading ? 1 : 0),
                     itemBuilder: (context, index) {
-                      if (index == chatState.messages.length) return _buildTypingIndicator();
+                      if (index == chatState.messages.length) {
+                        return _buildTypingIndicator(
+                          chatState.statusMessage ?? 'Thinking with your labs…',
+                        );
+                      }
                       return _buildMessageBubble(chatState.messages[index]);
                     },
                   ),
           ),
+          if (chatState.isLoading &&
+              (chatState.statusMessage?.toLowerCase().contains('rebuild') ?? false))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.chipBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.primaryColor.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        chatState.statusMessage!,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (chatState.suggestions.isNotEmpty && !chatState.isLoading)
             _buildSuggestions(chatState.suggestions),
           _buildInputBar(chatState.isLoading),
@@ -193,7 +234,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
     ).craftIn(durationMs: 280);
   }
 
-  Widget _buildTypingIndicator() {
+  Widget _buildTypingIndicator(String status) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -216,11 +257,14 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              'Thinking with your labs…',
-              style: GoogleFonts.plusJakartaSans(
-                color: AppTheme.textSecondaryColor,
-                fontSize: 13,
+            Flexible(
+              child: Text(
+                status,
+                style: GoogleFonts.plusJakartaSans(
+                  color: AppTheme.textSecondaryColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

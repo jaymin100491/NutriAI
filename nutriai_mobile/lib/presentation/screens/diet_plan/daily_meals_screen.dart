@@ -20,9 +20,22 @@ class DailyMealsScreen extends ConsumerWidget {
     required this.meals,
   });
 
+  static const _mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+  List<dynamic> get _orderedMeals {
+    final copy = List<dynamic>.from(meals);
+    copy.sort((a, b) {
+      final ai = _mealOrder.indexOf((a.mealType as String?)?.toLowerCase() ?? '');
+      final bi = _mealOrder.indexOf((b.mealType as String?)?.toLowerCase() ?? '');
+      return (ai < 0 ? 99 : ai).compareTo(bi < 0 ? 99 : bi);
+    });
+    return copy;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final parsedDate = DateTime.parse(date);
+    final ordered = _orderedMeals;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -45,7 +58,7 @@ class DailyMealsScreen extends ConsumerWidget {
           ],
         ),
       ),
-      body: meals.isEmpty
+      body: ordered.isEmpty
           ? const CraftEmptyState(
               icon: Icons.restaurant_menu_rounded,
               title: 'No meals this day',
@@ -54,14 +67,14 @@ class DailyMealsScreen extends ConsumerWidget {
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
-                _buildDailySummary().craftIn(),
+                _buildDailySummary(ordered).craftIn(),
                 const SizedBox(height: 18),
                 CraftSectionHeader(
                   title: 'Meals',
-                  subtitle: '${meals.length} plated for this day',
+                  subtitle: '${ordered.length} plated · breakfast → snack',
                 ).craftIn(delayMs: 40),
                 const SizedBox(height: 12),
-                ...meals.asMap().entries.map(
+                ...ordered.asMap().entries.map(
                       (e) => _buildMealCard(context, ref, e.value).craftIn(delayMs: 70 + e.key * 40),
                     ),
               ],
@@ -69,13 +82,13 @@ class DailyMealsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDailySummary() {
+  Widget _buildDailySummary(List<dynamic> ordered) {
     int totalCalories = 0;
     double totalProtein = 0;
     double totalCarbs = 0;
     double totalFat = 0;
 
-    for (var meal in meals) {
+    for (var meal in ordered) {
       if (meal.recipe != null) {
         totalCalories += meal.recipe.nutrition.calories as int;
         totalProtein += meal.recipe.nutrition.proteinG;
@@ -222,13 +235,25 @@ class DailyMealsScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => _dislikeMeal(context, ref, meal),
-                    icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                    label: const Text('Swap meal'),
-                  ),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _logAdherence(context, ref, meal, 'done'),
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: const Text('Done'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _logAdherence(context, ref, meal, 'skipped'),
+                      icon: const Icon(Icons.skip_next_rounded, size: 18),
+                      label: const Text('Skipped'),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => _dislikeMeal(context, ref, meal),
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                      label: const Text('Swap'),
+                    ),
+                  ],
                 ),
               ] else
                 Text(
@@ -240,6 +265,35 @@ class DailyMealsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _logAdherence(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic meal,
+    String status,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await ref.read(dietPlanNotifierProvider.notifier).logMealAdherence(
+            day: meal.day as int,
+            mealType: meal.mealType as String,
+            status: status,
+            recipeName: meal.recipe?.name as String?,
+            date: meal.date as String?,
+          );
+      if (!context.mounted) return;
+      final msg = result['message']?.toString() ??
+          (status == 'done' ? 'Logged as done' : 'Logged as skipped');
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Could not log meal: $e'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
   }
 
   Future<void> _dislikeMeal(BuildContext context, WidgetRef ref, dynamic meal) async {

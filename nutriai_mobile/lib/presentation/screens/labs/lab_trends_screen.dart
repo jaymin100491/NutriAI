@@ -72,6 +72,11 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
     final trends = (data['trends'] as List? ?? [])
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
+        // Hide low-signal BMI (often corrupted by height typos)
+        .where((t) {
+          final name = (t['test_name'] ?? t['name'] ?? '').toString().toLowerCase();
+          return !name.contains('bmi') && !name.contains('body mass');
+        })
         .toList();
     final insights = (data['insights'] as List? ?? [])
         .whereType<Map>()
@@ -545,6 +550,10 @@ class _MarkerStoryCardState extends State<_MarkerStoryCard>
     final transition = trend['status_transition']?.toString() ?? '';
     final sourceId = trend['source_id']?.toString() ?? trend['citation']?.toString() ?? '';
     final boundSource = trend['bound_source']?.toString() ?? '';
+    final provenance = trend['provenance']?.toString() ??
+        (trend['panel_date'] != null
+            ? 'Labcorp panel · ${trend['panel_date']}'
+            : '');
     final refLow = trend['reference_low'];
     final refHigh = trend['reference_high'];
     final dirIcon = direction == 'up'
@@ -679,6 +688,15 @@ class _MarkerStoryCardState extends State<_MarkerStoryCard>
                   color: AppTheme.textSecondaryColor,
                 ),
               ),
+              if (provenance.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ProvenanceChip(
+                  label: provenance.startsWith('from ')
+                      ? provenance
+                      : 'from $provenance',
+                  icon: Icons.biotech_outlined,
+                ),
+              ],
               if (points.length >= 2) ...[
                 const SizedBox(height: 16),
                 SizedBox(

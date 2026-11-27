@@ -1,13 +1,24 @@
+from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from app.schemas.tracking import TrackingCreate, TrackingResponse, ProgressResponse
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.db import repository as repo
+from app.db.store import get_user_preferences, set_user_preferences
 
 router = APIRouter()
+
+
+class MealAdherenceRequest(BaseModel):
+    day: int = Field(..., ge=1, le=7)
+    meal_type: str
+    status: Literal["done", "skipped"]
+    recipe_name: Optional[str] = None
+    date: Optional[str] = None  # YYYY-MM-DD; defaults to today
 
 
 def _normalize_entry(user_id: int, data: dict, entry_id: Optional[int] = None) -> dict:
@@ -34,6 +45,105 @@ def _normalize_entry(user_id: int, data: dict, entry_id: Optional[int] = None) -
         "adherence_percent": data.get("adherence_percent"),
         "source": data.get("source", "manual"),
         "milestone": data.get("milestone"),
+    }
+
+
+@router.post("/meal-adherence")
+async def log_meal_adherence(
+    request: MealAdherenceRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Log a planned meal as done or skipped.
+    Updates today's adherence % and feeds nutrition learning for next week's targets.
+    """
+    user_id = int(current_user["id"])
+    meal_type = (request.meal_type or "").lower().strip()
+    if meal_type not in ("breakfast", "lunch", "dinner", "snack"):
+        raise HTTPException(status_code=400, detail="meal_type must be breakfast|lunch|dinner|snack")
+
+    log_date = (request.date or date.today().isoformat())[:10]
+    prefs = get_user_preferences(user_id)
+    logs = list(prefs.get("meal_adherence_logs") or [])
+    # Dedupe same day+meal
+    logs = [
+        e
+        for e in logs
+        if not (
+            e.get("date") == log_date
+            and str(e.get("meal_type") or "").lower() == meal_type
+        )
+    ]
+    entry = {
+        "date": log_date,
+        "day": request.day,
+        "meal_type": meal_type,
+        "status": request.status,
+        "recipe_name": request.recipe_name,
+        "logged_at": datetime.now(timezone.utc).isoformat(),
+    }
+    logs.append(entry)
+    prefs["meal_adherence_logs"] = logs[-200:]
+    set_user_preferences(user_id, prefs)
+
+    day_logs = [e for e in prefs["meal_adherence_logs"] if e.get("date") == log_date]
+    done_n = sum(1 for e in day_logs if e.get("status") == "done")
+    skipped_n = sum(1 for e in day_logs if e.get("status") == "skipped")
+    total = done_n + skipped_n
+    # 4 meals/day baseline; partial days scale from logged meals
+    adherence = round(100.0 * done_n / max(total, 1), 1)
+    if total < 4 and request.status == "done":
+        # Optimistic partial: credit remaining unlogged as neutral mid
+        adherence = round(100.0 * (done_n + 0.5 * (4 - total)) / 4.0, 1)
+    elif total < 4 and request.status == "skipped":
+        adherence = round(100.0 * (done_n + 0.5 * (4 - total)) / 4.0, 1)
+
+    existing = repo.get_tracking_entries(db, user_id, days=3)
+    today_row = next((e for e in reversed(existing) if e.get("date") == log_date), None) or {}
+    saved = repo.upsert_tracking_entry(
+        db,
+        user_id,
+        {
+            **today_row,
+            "date": log_date,
+            "adherence_percent": adherence,
+            "notes": (
+                f"Meals: {done_n} done, {skipped_n} skipped"
+                + (f" · last: {request.status} {meal_type}" if meal_type else "")
+            ),
+            "source": "meal_adherence",
+        },
+    )
+
+    # Feed continuous learning so next week adapts
+    try:
+        from app.services.nutrition_learning import learn_from_user_tracking
+        from app.services.goal_service import get_goals_for_user
+
+        tracking = repo.get_tracking_entries(db, user_id, days=14)
+        goals = get_goals_for_user(user_id, current_user) or []
+        primary = "general"
+        if goals:
+            primary = str(goals[0].get("goal_type") or goals[0].get("label") or "general")
+        learn_from_user_tracking(db, user_id, tracking, primary)
+    except Exception:
+        # Learning is best-effort; adherence log still succeeds
+        pass
+
+    return {
+        "ok": True,
+        "date": log_date,
+        "meal_type": meal_type,
+        "status": request.status,
+        "day_done": done_n,
+        "day_skipped": skipped_n,
+        "adherence_percent": adherence,
+        "tracking": saved,
+        "message": (
+            f"Logged {meal_type} as {request.status}. "
+            f"Today’s adherence ≈ {adherence:.0f}% — next week’s plan will adapt."
+        ),
     }
 
 

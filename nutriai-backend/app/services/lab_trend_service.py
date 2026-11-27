@@ -239,6 +239,10 @@ def build_lab_trends(lab_results: List[Dict[str, Any]], *, patient_id: str = "pa
             continue
         for test in (panel.get("results") or {}).get("tests") or []:
             name = str(test.get("name") or "").strip()
+            lower_name = name.lower()
+            # BMI from bad height/weight is high-noise — never show in coaching trends
+            if "bmi" in lower_name or "body mass" in lower_name:
+                continue
             hit = _meta_for(name)
             if not name or not hit:
                 continue
@@ -315,7 +319,11 @@ def build_lab_trends(lab_results: List[Dict[str, Any]], *, patient_id: str = "pa
                 "reference_high": latest["high"],
                 "bound_source": latest["bound_source"],
                 "source_id": latest["source_id"],
-                "clinical_context": latest["snippet"],
+                "clinical_context": (
+                    f"{latest['snippet']} Source panel date: {latest['date']}."
+                ),
+                "panel_date": latest["date"],
+                "provenance": f"Labcorp panel · {latest['date']}",
                 "points": [{"date": p["date"], "value": round(p["value"], 2)} for p in ordered],
                 "citation": latest["source_id"],
             }

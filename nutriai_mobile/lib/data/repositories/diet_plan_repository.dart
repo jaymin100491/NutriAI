@@ -130,6 +130,27 @@ class DietPlanRepository {
     }
   }
 
+  /// Log meal done / skipped → updates adherence and nutrition learning.
+  Future<Map<String, dynamic>> logMealAdherence({
+    required int day,
+    required String mealType,
+    required String status, // done | skipped
+    String? recipeName,
+    String? date,
+  }) async {
+    final response = await _dioClient.dio.post(
+      ApiConstants.mealAdherence,
+      data: {
+        'day': day,
+        'meal_type': mealType,
+        'status': status,
+        if (recipeName != null) 'recipe_name': recipeName,
+        if (date != null) 'date': date,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> getPreferences() async {
     final response = await _dioClient.dio.get(
       '${ApiConstants.apiV1}/diet-plans/preferences',

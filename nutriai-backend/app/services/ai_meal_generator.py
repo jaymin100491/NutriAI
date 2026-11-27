@@ -383,6 +383,18 @@ def generate_ai_week_meals(
                     "ingredients": [{"item": "seasonal produce", "quantity": "1", "unit": "serving"}],
                     "health_tags": ["balanced"],
                 }
+            if exclusive_cuisine and cuisines:
+                # Force exclusive cuisine tagging even if the model drifts
+                src = {**src, "cuisine_type": cuisines[0]}
+                name = str(src.get("name") or "")
+                # Soft authenticity check — rewrite vague western placeholders
+                banned = ("smoothie bowl", "avocado toast", "trail mix", "protein bar", "caesar")
+                if any(b in name.lower() for b in banned) and cuisines[0].lower() not in (
+                    "american",
+                    "mediterranean",
+                ):
+                    src["name"] = f"{cuisines[0]} {mt.title()} Bowl"
+                    src["description"] = f"Authentic-leaning {cuisines[0]} {mt}."
             recipe = _recipe_from_ai_meal(src, recipe_id_base + n)
             n += 1
             plan_meals.append(

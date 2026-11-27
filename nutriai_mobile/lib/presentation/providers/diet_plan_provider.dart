@@ -180,6 +180,22 @@ class DietPlanNotifier extends StateNotifier<DietPlanState> {
     }
   }
 
+  Future<Map<String, dynamic>> logMealAdherence({
+    required int day,
+    required String mealType,
+    required String status,
+    String? recipeName,
+    String? date,
+  }) {
+    return _repository.logMealAdherence(
+      day: day,
+      mealType: mealType,
+      status: status,
+      recipeName: recipeName,
+      date: date,
+    );
+  }
+
   Future<void> updatePreferences({
     required String dietaryPreference,
     required List<String> cuisinePreferences,

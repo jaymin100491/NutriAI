@@ -395,6 +395,7 @@ class _TodaysMeals extends StatelessWidget {
       );
     }
 
+    const order = ['breakfast', 'lunch', 'dinner', 'snack'];
     final today = DateTime.now();
     var meals = plan.meals.where((m) {
       try {
@@ -407,6 +408,11 @@ class _TodaysMeals extends StatelessWidget {
     if (meals.isEmpty) {
       meals = plan.meals.where((m) => m.day == 1).toList();
     }
+    meals.sort((a, b) {
+      final ai = order.indexOf(a.mealType.toLowerCase());
+      final bi = order.indexOf(b.mealType.toLowerCase());
+      return (ai < 0 ? 99 : ai).compareTo(bi < 0 ? 99 : bi);
+    });
 
     return Container(
       decoration: BoxDecoration(
