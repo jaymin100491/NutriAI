@@ -1,21 +1,58 @@
 """
-AI Dietitian chat service — conversational diet customization with Claude/OpenAI fallback.
-Handles: ingredient swaps, goal reprioritization, meal replacements, general nutrition Q&A.
+AI Dietitian chat — grounded in the user's actual current week plan.
+Uses OpenAI/Claude with a full meal inventory; never invents dishes.
 """
 from __future__ import annotations
 
-import json
 import re
+from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
 from app.db.mock_data import MOCK_USERS
-from app.db.store import add_chat_message, add_substitution_preference, get_chat_history, get_user_preferences
+from app.db.store import (
+    add_chat_message,
+    add_substitution_preference,
+    get_chat_history,
+    get_user_plan,
+    get_user_preferences,
+    set_user_preferences,
+)
 from app.services.diet_plan_engine import apply_plan_modifications, generate_diet_plan, get_or_create_plan
 from app.services.goal_service import get_goals_for_user, parse_priority_from_message, update_goal_priorities
-from app.services.recipe_catalog import find_substitute_recipes, get_substitution_options
+from app.services.recipe_catalog import get_substitution_options
+from app.services.weekly_plan_service import generate_weekly_plan
 
-# Substitution patterns: "change tofu to paneer", "I don't like tofu, use paneer instead"
+# Longer phrases first so "middle eastern" / "south indian" win over shorter tokens.
+_KNOWN_CUISINES = [
+    "middle eastern",
+    "south indian",
+    "north indian",
+    "mediterranean",
+    "vietnamese",
+    "ethiopian",
+    "caribbean",
+    "japanese",
+    "mexican",
+    "italian",
+    "chinese",
+    "american",
+    "korean",
+    "indian",
+    "french",
+    "spanish",
+    "greek",
+    "asian",
+    "thai",
+    "desi",  # maps to Indian
+]
+
+_CUISINE_ALIASES = {
+    "desi": "Indian",
+    "south indian": "Indian",
+    "north indian": "Indian",
+}
+
 SWAP_PATTERNS = [
     r"(?:change|swap|replace|substitute)\s+(\w+)\s+(?:to|with|for)\s+(\w+)",
     r"(?:don'?t|do not)\s+like\s+(\w+).*(?:use|try|want|prefer)\s+(\w+)",
@@ -36,11 +73,14 @@ PRIORITY_PATTERNS = [
     r"fix\s+\w+\s+first",
 ]
 
+MEAL_TYPES = ("breakfast", "lunch", "dinner", "snack")
+
 
 def _get_user(user_id: int) -> Dict[str, Any]:
     from app.db.database import SessionLocal
     from app.db import repository as repo
 
+    prefs = get_user_preferences(user_id)
     db = SessionLocal()
     try:
         user = repo.get_user_by_id(db, user_id)
@@ -50,9 +90,9 @@ def _get_user(user_id: int) -> Dict[str, Any]:
                 "email": user.email,
                 "first_name": user.first_name or "Patient",
                 "last_name": user.last_name or "",
-                "dietary_preference": "omnivore",
-                "allergies": [],
-                "medical_conditions": [],
+                "dietary_preference": prefs.get("dietary_preference") or "omnivore",
+                "allergies": prefs.get("allergies") or [],
+                "medical_conditions": prefs.get("medical_conditions") or [],
             }
     finally:
         db.close()
@@ -73,34 +113,420 @@ def _get_latest_lab(user_id: int) -> Optional[Dict[str, Any]]:
     return results[0]
 
 
+def _current_plan(user_id: int) -> Optional[Dict[str, Any]]:
+    """Prefer the saved current week plan (same as Plan tab) — never invent another."""
+    plan = get_user_plan(user_id)
+    if plan and plan.get("meals"):
+        return plan
+    return None
+
+
+def _meal_recipe(meal: Dict[str, Any]) -> Dict[str, Any]:
+    recipe = meal.get("recipe")
+    return recipe if isinstance(recipe, dict) else {}
+
+
+def _format_ingredient(ing: Dict[str, Any]) -> str:
+    qty = str(ing.get("quantity") or "").strip()
+    unit = str(ing.get("unit") or "").strip()
+    item = str(ing.get("item") or "").strip()
+    notes = str(ing.get("notes") or "").strip()
+    amount = " ".join(p for p in (qty, unit) if p).strip()
+    line = f"{amount} {item}".strip() if amount else item
+    if notes:
+        line = f"{line} ({notes})"
+    return line
+
+
+def _format_plan_inventory(plan: Dict[str, Any], *, detailed: bool = True) -> str:
+    meals = plan.get("meals") or []
+    if not meals:
+        return "No meals on the current plan."
+    lines: List[str] = []
+    for meal in meals:
+        recipe = _meal_recipe(meal)
+        name = recipe.get("name") or "Untitled meal"
+        mtype = str(meal.get("meal_type") or "").lower()
+        day = meal.get("weekday") or f"Day {meal.get('day')}"
+        d = str(meal.get("date") or "")[:10]
+        cals = (recipe.get("nutrition") or {}).get("calories", "")
+        lines.append(f"- {d} ({day}) {mtype}: {name}" + (f" · {cals} kcal" if cals != "" else ""))
+        if detailed:
+            ings = recipe.get("ingredients") or []
+            if ings:
+                lines.append(
+                    "  Ingredients: "
+                    + "; ".join(_format_ingredient(i) for i in ings if isinstance(i, dict))
+                )
+            steps = recipe.get("instructions") or []
+            if steps:
+                lines.append("  Steps: " + " | ".join(f"{i+1}. {s}" for i, s in enumerate(steps[:8])))
+    return "\n".join(lines)
+
+
+def _parse_iso(d: str) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(d)[:10])
+    except ValueError:
+        return None
+
+
+def _resolve_target_date(message: str, today: date) -> date:
+    msg = message.lower()
+    if "tomorrow" in msg or "tmrw" in msg:
+        return today + timedelta(days=1)
+    if "yesterday" in msg:
+        return today - timedelta(days=1)
+    # weekday names
+    weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    for i, name in enumerate(weekdays):
+        if name in msg:
+            delta = (i - today.weekday()) % 7
+            return today + timedelta(days=delta)
+    return today
+
+
+def _detect_meal_type(message: str) -> Optional[str]:
+    msg = message.lower()
+    for m in MEAL_TYPES:
+        if m in msg:
+            return m
+    if "brunch" in msg:
+        return "breakfast"
+    return None
+
+
+def _meals_for_date(plan: Dict[str, Any], target: date) -> List[Dict[str, Any]]:
+    out = []
+    for meal in plan.get("meals") or []:
+        d = _parse_iso(str(meal.get("date") or ""))
+        if d == target:
+            out.append(meal)
+    return out
+
+
+def _cook_card(meal: Dict[str, Any]) -> str:
+    recipe = _meal_recipe(meal)
+    name = recipe.get("name") or "Meal"
+    mtype = str(meal.get("meal_type") or "").title()
+    d = str(meal.get("date") or "")[:10]
+    weekday = meal.get("weekday") or ""
+    nutrition = recipe.get("nutrition") or {}
+    ings = recipe.get("ingredients") or []
+    steps = recipe.get("instructions") or []
+    prep = recipe.get("prep_time_minutes")
+    cook = recipe.get("cook_time_minutes")
+    servings = recipe.get("servings") or 1
+
+    parts = [
+        f"**{name}** ({mtype} · {weekday} {d})",
+        f"Servings: {servings}"
+        + (f" · Prep {prep} min" if prep is not None else "")
+        + (f" · Cook {cook} min" if cook is not None else ""),
+    ]
+    if nutrition:
+        parts.append(
+            f"Nutrition: {nutrition.get('calories', '—')} kcal · "
+            f"P {nutrition.get('protein_g', '—')}g · "
+            f"C {nutrition.get('carbs_g', '—')}g · "
+            f"F {nutrition.get('fat_g', '—')}g"
+        )
+    if ings:
+        parts.append("**Ingredients (exact quantities from your plan):**")
+        for ing in ings:
+            if isinstance(ing, dict):
+                parts.append(f"• {_format_ingredient(ing)}")
+    else:
+        parts.append("Ingredients were not stored for this meal — open Plan → meal → Start cooking.")
+    if steps:
+        parts.append("**How to make it:**")
+        for i, step in enumerate(steps, 1):
+            parts.append(f"{i}. {step}")
+    else:
+        parts.append(
+            "Step-by-step instructions weren’t stored for this meal. "
+            "Open the meal in your Plan tab and use Start cooking for the guided view."
+        )
+    return "\n".join(parts)
+
+
+_OFF_TOPIC_HINTS = (
+    "weather",
+    "forecast",
+    "temperature in",
+    "temp in",
+    "raining",
+    "humidity",
+    "joke",
+    "funny",
+    "super bowl",
+    "world cup",
+    "who won",
+    "score of",
+    "capital of",
+    "president",
+    "prime minister",
+    "stock price",
+    "bitcoin",
+    "crypto",
+    "movie",
+    "netflix",
+    "celebrity",
+    "horoscope",
+    "lottery",
+    "lottery numbers",
+)
+
+
+def _is_off_topic(message: str) -> bool:
+    """True for clearly unrelated asks (weather, sports, trivia, etc.)."""
+    msg = message.lower().strip()
+    if any(h in msg for h in _OFF_TOPIC_HINTS):
+        return True
+    # "weather in Austin", "what's the weather in xyz"
+    if re.search(r"\bweather\b", msg) and re.search(r"\bin\b", msg):
+        return True
+    if re.search(r"\b(temperature|forecast)\b.*\bin\b", msg):
+        return True
+    return False
+
+
+def _off_topic_redirect(user_id: int) -> str:
+    user = _get_user(user_id)
+    plan = _current_plan(user_id)
+    tomorrow = date.today() + timedelta(days=1)
+    tip = "How do I make tomorrow’s breakfast?"
+    if plan:
+        t_meals = _meals_for_date(plan, tomorrow)
+        breakfast = next(
+            (m for m in t_meals if str(m.get("meal_type") or "").lower() == "breakfast"),
+            None,
+        )
+        if breakfast:
+            name = _meal_recipe(breakfast).get("name")
+            if name:
+                tip = f"How do I cook {name}?"
+    return (
+        f"I’m your NutriAI Coach for **{user.get('first_name', 'you')}** — I only help with "
+        "your labs, goals, meal plan, cooking steps, and nutrition coaching.\n\n"
+        "I can’t answer unrelated questions (weather, sports, trivia, etc.).\n\n"
+        "Try something like:\n"
+        f"• “{tip}”\n"
+        "• “What’s on my plan for today?”\n"
+        "• “Why is this meal good for my cholesterol?”\n"
+        "• “Change tofu to paneer”"
+    )
+
+
+def _is_plan_cook_question(message: str) -> bool:
+    """Strict intent: only route to deterministic cook cards for clear plan/meal asks."""
+    msg = message.lower().strip()
+    meal_type = _detect_meal_type(msg) is not None
+    explicit = any(
+        p in msg
+        for p in (
+            "how to make",
+            "how do i make",
+            "how do i cook",
+            "how to cook",
+            "what's for",
+            "whats for",
+            "what is for",
+            "what do i eat",
+            "what am i eating",
+            "on my plan",
+            "in my plan",
+            "my plan",
+            "check my plan",
+            "show my plan",
+            "my breakfast",
+            "my lunch",
+            "my dinner",
+            "my snack",
+            "ingredients for",
+            "recipe for",
+            "steps for",
+            "cook my",
+            "make my",
+        )
+    )
+    day_word = any(w in msg for w in ("today", "tomorrow", "tonight", "tmrw"))
+    # "tomorrow breakfast" / "dinner today" etc.
+    day_plus_meal = day_word and meal_type
+    weekday_ask = any(
+        d in msg for d in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    ) and (meal_type or "meal" in msg or "plan" in msg or "eat" in msg)
+    return explicit or day_plus_meal or weekday_ask
+
+
+def _plan_grounded_answer(user_id: int, message: str) -> Optional[str]:
+    """
+    Deterministic answers for clear plan/cook questions so we never invent dishes.
+    Returns None for general/random questions (those go to OpenAI + resilient fallback).
+    """
+    if not _is_plan_cook_question(message):
+        return None
+
+    plan = _current_plan(user_id)
+    if not plan:
+        return (
+            "I don’t see an active week plan on your account yet. "
+            "Open the Plan tab and generate your week first — then I can walk you through exact meals."
+        )
+
+    today = date.today()
+    target = _resolve_target_date(message, today)
+    meal_type = _detect_meal_type(message)
+    day_meals = _meals_for_date(plan, target)
+
+    if not day_meals:
+        weekday_name = target.strftime("%A")
+        day_meals = [
+            m
+            for m in (plan.get("meals") or [])
+            if str(m.get("weekday") or "").lower() == weekday_name.lower()
+        ]
+
+    if meal_type:
+        day_meals = [m for m in day_meals if str(m.get("meal_type") or "").lower() == meal_type]
+
+    if not day_meals:
+        inventory = _format_plan_inventory(plan, detailed=False)
+        return (
+            f"I checked your current plan (“{plan.get('title', 'Weekly plan')}”) and don’t see a "
+            f"{meal_type or 'meal'} for {target.isoformat()}.\n\n"
+            f"Here’s what’s actually on your plan:\n{inventory}\n\n"
+            "Ask me about one of those dishes (e.g. “How do I make Thursday dinner?”) "
+            "and I’ll use only that recipe."
+        )
+
+    when = "today" if target == today else ("tomorrow" if target == today + timedelta(days=1) else target.isoformat())
+    header = f"From **your plan** for {when} ({target.strftime('%A %b %d')}):\n\n"
+    cards = "\n\n---\n\n".join(_cook_card(m) for m in day_meals)
+    footer = (
+        "\n\nThese quantities and steps come only from your stored plan — not a generic recipe. "
+        "Open Plan → that day → the meal → **Start cooking** for the guided cook mode."
+    )
+    return header + cards + footer
+
+
+def _resilient_general_answer(user_id: int, message: str) -> str:
+    """
+    Demo-safe answer when LLMs are unavailable — never invents plan dishes,
+    still handles random / off-topic questions without "failing".
+    """
+    user = _get_user(user_id)
+    goals = get_goals_for_user(user_id, user)
+    plan = _current_plan(user_id)
+    lab = _get_latest_lab(user_id)
+    msg = message.lower().strip()
+
+    primary = goals[0].get("label", goals[0]["goal_type"]) if goals else "your health goals"
+    lab_bit = ""
+    if lab:
+        lab_bit = lab.get("interpretation", {}).get("summary") or ""
+        if lab_bit:
+            lab_bit = f" Your latest lab note: {lab_bit}"
+
+    tomorrow = date.today() + timedelta(days=1)
+    tomorrow_line = ""
+    if plan:
+        t_meals = _meals_for_date(plan, tomorrow)
+        if t_meals:
+            bits = [
+                f"{str(m.get('meal_type')).title()}: {_meal_recipe(m).get('name', 'meal')}"
+                for m in t_meals
+            ]
+            tomorrow_line = " Tomorrow on your plan — " + "; ".join(bits) + "."
+
+    if _is_off_topic(message) or len(msg) < 2:
+        return _off_topic_redirect(user_id)
+
+    # Nutrition / lifestyle without a specific meal ask
+    if any(w in msg for w in ("cholesterol", "ldl", "lipid")):
+        return (
+            f"For cholesterol coaching I’m using **your** labs and plan — not a generic internet tip.{lab_bit}\n\n"
+            "On your week I keep fiber-forward meals and limit saturated-fat heavy swaps unless you ask. "
+            f"Primary focus: **{primary}**.{tomorrow_line}\n\n"
+            "Ask “What’s for dinner tomorrow?” and I’ll pull the exact dish from your plan."
+        )
+    if any(w in msg for w in ("sugar", "glucose", "a1c", "diabetes")):
+        return (
+            f"For blood-sugar coaching I stay inside your goals and planned meals.{lab_bit}\n\n"
+            f"Priority: **{primary}**.{tomorrow_line}\n\n"
+            "I can walk you through tomorrow’s meals step-by-step — just ask."
+        )
+    if any(w in msg for w in ("water", "hydrat", "sleep", "exercise", "walk", "stress", "vitamin")):
+        return (
+            f"Happy to talk lifestyle in the context of **{primary}**.{lab_bit}\n\n"
+            "I won’t invent meals that aren’t on your plan. "
+            f"{tomorrow_line or 'Open Plan to see this week’s dishes.'}\n\n"
+            "Ask a plan question anytime — e.g. “How do I cook tomorrow’s lunch?”"
+        )
+
+    return (
+        f"Got it. I can answer that in coaching context for **{primary}**"
+        f"{' using your labs' if lab else ''}, and I only name dishes that are on your current week plan."
+        f"{tomorrow_line}\n\n"
+        "If you meant a meal question, try: “How do I make tomorrow’s breakfast?” "
+        "or “What’s on my plan for today?”"
+    )
+
+
 def _build_system_context(user_id: int) -> str:
     user = _get_user(user_id)
     goals = get_goals_for_user(user_id, user)
-    plan = get_or_create_plan(user)
+    plan = _current_plan(user_id)
     lab = _get_latest_lab(user_id)
     prefs = get_user_preferences(user_id)
+    today = date.today().isoformat()
 
     goals_text = "\n".join(
         f"  {g['priority']}. {g.get('label', g['goal_type'])}"
         + (f" — current: {g.get('current_value')} {g.get('unit')}" if g.get("current_value") else "")
         for g in goals
-    )
+    ) or "  None set"
 
     lab_text = "No lab results on file."
     if lab:
-        lab_text = lab.get("interpretation", {}).get("summary", "See lab results.")
+        lab_text = lab.get("interpretation", {}).get("summary") or lab.get("ai_interpretation") or "See lab results."
 
-    plan_summary = f"Active plan: {plan['title']}, {plan['duration_days']} days, {len(plan['meals'])} meals."
+    if plan:
+        plan_block = (
+            f"Title: {plan.get('title')}\n"
+            f"Dates: {plan.get('start_date') or plan.get('week_start')} → "
+            f"{plan.get('end_date') or plan.get('week_end')}\n"
+            f"Target calories: {plan.get('target_calories')}\n"
+            f"FULL MEAL INVENTORY (authoritative — do not invent other dishes):\n"
+            f"{_format_plan_inventory(plan, detailed=True)}"
+        )
+    else:
+        plan_block = "No current week plan on file. Tell the user to generate a plan in the Plan tab."
+
     subs = prefs.get("substitutions", {})
     subs_text = ", ".join(f"{k}→{v}" for k, v in subs.items()) if subs else "None yet."
 
-    return f"""You are NutriAI, an expert AI dietitian. You help users customize their personalized 7-day meal plans.
+    return f"""You are NutriAI Coach, a precision AI dietitian inside a production app.
+
+TODAY'S DATE: {today}
+
+CRITICAL RULES (must follow):
+1. ONLY name meals that appear in CURRENT PLAN MEAL INVENTORY below.
+2. NEVER invent, substitute, or "suggest a typical breakfast" that is not on the inventory.
+3. If the user asks how to cook a meal, use that meal's ingredients (with quantities) and instructions exactly.
+4. If asked about a day/meal that is missing, say so and list what IS on the plan for nearby days.
+5. For non-meal nutrition / lifestyle questions, answer helpfully using labs/goals — still do not invent plan dishes.
+6. For off-topic / unrelated questions (weather, sports, trivia, jokes, news, stocks): DO NOT answer
+   the topic. Politely refuse in 1–2 sentences and redirect to labs, goals, meal plan, or cooking help.
+   Never pretend a random topic is a meal on their plan.
+7. Be warm, specific, and demo-ready. Wellness coaching only — not a medical diagnosis.
 
 USER PROFILE:
 - Name: {user['first_name']} {user['last_name']}
 - Dietary preference: {user.get('dietary_preference', 'omnivore')}
 - Allergies: {', '.join(user.get('allergies', [])) or 'None'}
-- Medical conditions: {', '.join(user.get('medical_conditions', [])) or 'None'}
+- Cuisine prefs: {', '.join(prefs.get('cuisine_preferences') or []) or 'n/a'}
+- Dislikes: {', '.join(prefs.get('disliked_ingredients') or prefs.get('dislikes') or []) or 'n/a'}
 
 HEALTH GOALS (priority order):
 {goals_text}
@@ -109,211 +535,248 @@ LATEST LAB SUMMARY:
 {lab_text}
 
 CURRENT PLAN:
-{plan_summary}
+{plan_block}
 Learned substitutions: {subs_text}
 
 CAPABILITIES:
-1. Swap ingredients (e.g., tofu → paneer) across the 7-day plan
-2. Reprioritize health goals ("fix blood sugar first, then cholesterol")
-3. Regenerate the full plan based on updated priorities
-4. Answer nutrition questions with empathy and evidence-based advice
-5. Suggest alternatives from 1,500+ recipes
-
-Always be warm, professional, and action-oriented. When making plan changes, confirm what you changed and why."""
+1. Explain / cook any meal on THEIR plan (ingredients + quantities + steps)
+2. Rebuild the week for a cuisine (e.g. all-Indian week) when the user asks
+3. Swap ingredients across the week when asked
+4. Reprioritize goals / regenerate plan when asked
+5. Answer nutrition questions grounded in THEIR labs and goals
+"""
 
 
 def _detect_swap(message: str) -> Optional[Tuple[str, str]]:
-    msg = message.lower()
     for pattern in SWAP_PATTERNS:
-        match = re.search(pattern, msg, re.IGNORECASE)
+        match = re.search(pattern, message.lower(), re.IGNORECASE)
         if match:
             groups = match.groups()
             if len(groups) >= 2:
-                # Handle "X instead of Y" pattern
                 if "instead of" in pattern:
                     return groups[1].strip(), groups[0].strip()
                 return groups[0].strip(), groups[1].strip()
     return None
 
 
-def _rule_based_response(user_id: int, message: str) -> Dict[str, Any]:
-    """Intelligent fallback when no AI API key is configured."""
+def _extract_cuisine_mention(message: str) -> Optional[str]:
+    msg = message.lower()
+    for c in sorted(_KNOWN_CUISINES, key=len, reverse=True):
+        if re.search(rf"\b{re.escape(c)}\b", msg):
+            if c in _CUISINE_ALIASES:
+                return _CUISINE_ALIASES[c]
+            return " ".join(w.capitalize() for w in c.split())
+    return None
+
+
+def _detect_cuisine_week_request(message: str) -> Optional[str]:
+    """
+    Natural-language cuisine preference → rebuild this week's plan.
+
+    Users should not need a magic phrase. Examples that should work:
+      - "Indian food"
+      - "I want Mexican this week"
+      - "Can we do Thai?"
+      - "Make my meals Indian"
+      - "Switch to Mediterranean"
+    """
+    msg = message.lower().strip()
+    found = _extract_cuisine_mention(message)
+    if not found:
+        return None
+
+    # Leave pure cook / explain questions alone (existing plan dishes)
+    if any(
+        p in msg
+        for p in (
+            "how to make",
+            "how do i make",
+            "how do i cook",
+            "how to cook",
+            "ingredients for",
+            "steps for",
+            "recipe for",
+        )
+    ):
+        return None
+    # Nutrition opinion questions — not a rebuild
+    if re.search(r"\b(why is|is .+ good|good for|bad for|healthy for)\b", msg) and "?" in msg:
+        if not re.search(r"\b(want|prefer|switch|change|replace|make my|give me)\b", msg):
+            return None
+
+    words = re.findall(r"[a-z0-9]+", msg)
+    # Short preference: "Indian", "Indian food", "Mexican please", "more Thai"
+    if len(words) <= 6:
+        return found
+
+    # Any natural preference / plan language around a cuisine
+    if re.search(
+        r"\b(want|prefer|like|love|crave|feel like|switch|change|replace|make|"
+        r"set|give me|go |do |try|keep|stick to|focus on|only|just|all|"
+        r"entire|week|meals?|plans?|diet|food|cuisine|dishes|instead)\b",
+        msg,
+    ):
+        return found
+
+    # "Indian food for dinner all week" style without verbs above still caught by food+cuisine
+    if re.search(rf"\b{re.escape(found.lower())}\b.{{0,40}}\b(food|meals?|cuisine|dishes|diet)\b", msg):
+        return found
+    if re.search(rf"\b(food|meals?|cuisine|dishes|diet)\b.{{0,40}}\b{re.escape(found.lower())}\b", msg):
+        return found
+
+    return None
+
+
+def _is_greeting_only(message: str) -> bool:
+    """Word-boundary greetings — never match 'hi' inside 'this'."""
+    msg = message.lower().strip()
+    if re.fullmatch(r"(hi|hello|hey|yo|sup)[!?.\s]*", msg):
+        return True
+    if re.search(r"\b(what can you|how can you help|help me)\b", msg):
+        return True
+    # Short hello with nothing else actionable
+    if re.match(r"^(hi|hello|hey)\b", msg) and len(msg.split()) <= 4:
+        if not _detect_cuisine_week_request(message) and not _detect_swap(message):
+            if not any(re.search(p, msg) for p in REGENERATE_PATTERNS):
+                return True
+    return False
+
+
+def _rule_based_actions(user_id: int, message: str) -> Dict[str, Any]:
+    """Structural plan changes — cuisine rebuild, swaps, priorities, regenerate."""
     user = _get_user(user_id)
     msg = message.lower().strip()
     plan_modified = False
     goals_updated = False
-    response_parts = []
+    response_parts: List[str] = []
 
-    # Check for swap request
-    swap = _detect_swap(message)
-    if swap:
+    cuisine = _detect_cuisine_week_request(message)
+    if cuisine:
+        prefs = get_user_preferences(user_id)
+        # This-week-only: don't permanently overwrite prefs unless they ask forever
+        permanent = any(w in msg for w in ("always", "from now on", "permanently", "every week"))
+        if permanent:
+            prefs = {**prefs, "cuisine_preferences": [cuisine]}
+            set_user_preferences(user_id, prefs)
+        try:
+            plan = generate_weekly_plan(
+                user,
+                for_next_week=False,
+                allow_ai=True,
+                cuisine_override=[cuisine],
+                cuisine_mode="exclusive",
+            )
+            plan_modified = True
+            sample = []
+            for meal in (plan.get("meals") or [])[:4]:
+                name = _meal_recipe(meal).get("name")
+                if name:
+                    sample.append(f"{meal.get('meal_type')}: {name}")
+            sample_txt = ("\nExamples: " + "; ".join(sample)) if sample else ""
+            week_note = (
+                f"Saved **{cuisine}** as your ongoing cuisine preference."
+                if permanent
+                else f"Applied for **this week only** — your long-term cuisine prefs are unchanged."
+            )
+            response_parts.append(
+                f"Got it — I heard you want **{cuisine}** food, so I rebuilt your Mon–Sun plan "
+                f"around that ({plan.get('target_calories')} kcal/day · {plan.get('generation_source', 'engine')}).\n\n"
+                f"{week_note}\n"
+                f"Open the **Plan** tab for every meal.{sample_txt}\n\n"
+                "You can say this naturally anytime — e.g. “Thai food”, “I want Mexican”, "
+                "or “switch to Mediterranean” — no special wording needed."
+            )
+        except Exception as e:
+            response_parts.append(
+                f"I understood you want an all-**{cuisine}** week, but rebuilding failed: {e}. "
+                "Try again in a moment or tap Rebuild week on the Plan tab."
+            )
+
+    elif _detect_swap(message):
+        swap = _detect_swap(message)
+        assert swap is not None
         swap_from, swap_to = swap
         add_substitution_preference(user_id, swap_from, swap_to)
         try:
-            updated_plan = apply_plan_modifications(user_id, swap_from, swap_to)
+            apply_plan_modifications(user_id, swap_from, swap_to)
             plan_modified = True
-            mod_count = updated_plan.get("customization_count", 0)
             alts = get_substitution_options(swap_from)
             response_parts.append(
-                f"Done! I've updated your 7-day meal plan, replacing **{swap_from}** with **{swap_to}** "
-                f"across all matching meals. Your shopping list has been refreshed too.\n\n"
-                f"💡 Other alternatives for {swap_from}: {', '.join(alts[:3]) if alts else 'ask me anytime'}.\n\n"
-                f"This preference is saved — future plans will automatically use {swap_to} instead of {swap_from}."
+                f"Done — I replaced **{swap_from}** with **{swap_to}** across matching meals in your current plan. "
+                f"Other options for {swap_from}: {', '.join(alts[:3]) if alts else 'ask me anytime'}."
             )
         except Exception as e:
-            response_parts.append(f"I understood you want to swap {swap_from} for {swap_to}, but couldn't update the plan: {e}")
+            response_parts.append(f"I understood the swap ({swap_from} → {swap_to}) but couldn’t update the plan: {e}")
 
-    # Check for priority reordering
-    elif any(re.search(p, msg) for p in PRIORITY_PATTERNS):
+    elif any(re.search(p, msg) for p in PRIORITY_PATTERNS) and any(
+        w in msg for w in ("first", "priority", "focus", "then")
+    ):
         goals = get_goals_for_user(user_id, user)
         new_order = parse_priority_from_message(message, goals)
         if new_order:
             updated = update_goal_priorities(user_id, new_order)
             goals_updated = True
-            plan = generate_diet_plan(user, goals_override=new_order)
+            plan = generate_weekly_plan(user, for_next_week=False, allow_ai=True)
             plan_modified = True
             order_text = "\n".join(f"  {g['priority']}. {g.get('label', g['goal_type'])}" for g in updated)
             response_parts.append(
-                f"I've reprioritized your health goals and regenerated your 7-day plan:\n\n{order_text}\n\n"
-                f"Your new plan **\"{plan['title']}\"** focuses on #{updated[0].get('label')} first. "
-                f"All meals for the next 7 days reflect this priority."
-            )
-        else:
-            response_parts.append(
-                "I can help reprioritize your health goals. Try saying something like:\n"
-                "• \"Focus on blood sugar first, then cholesterol\"\n"
-                "• \"I need to fix my diabetes before working on weight loss\""
+                f"Priorities updated and week plan regenerated:\n{order_text}\n\n"
+                f"New plan: **{plan['title']}**."
             )
 
-    # Regenerate plan
     elif any(re.search(p, msg) for p in REGENERATE_PATTERNS):
-        plan = generate_diet_plan(user)
+        plan = generate_weekly_plan(user, for_next_week=False, allow_ai=True)
         plan_modified = True
         response_parts.append(
-            f"I've generated a fresh 7-day plan: **{plan['title']}**.\n\n"
-            f"{plan.get('ai_rationale', '')}\n\n"
-            f"Target: {plan['target_calories']} cal/day. Check your Diet Plan tab to see all meals!"
+            f"Fresh Mon–Sun plan ready: **{plan['title']}** ({plan.get('target_calories')} kcal/day). "
+            "Open the Plan tab to cook each meal."
         )
 
-    # Greeting / help
-    elif any(w in msg for w in ["hello", "hi", "hey", "help", "what can you"]):
-        goals = get_goals_for_user(user_id, user)
-        primary = goals[0] if goals else None
+    elif _is_greeting_only(message):
+        plan = _current_plan(user_id)
+        sample = ""
+        if plan and plan.get("meals"):
+            tomorrow = date.today() + timedelta(days=1)
+            t_meals = _meals_for_date(plan, tomorrow)
+            if t_meals:
+                names = [
+                    f"{m.get('meal_type')}: {_meal_recipe(m).get('name', 'meal')}" for m in t_meals
+                ]
+                sample = "\n\nTomorrow on your plan: " + "; ".join(names)
         response_parts.append(
-            f"Hi {user['first_name']}! I'm your AI dietitian. I have your full health profile and active meal plan.\n\n"
-            "Here's what I can do:\n"
-            "🔄 **Swap ingredients** — \"Change tofu to paneer in my plan\"\n"
-            "🎯 **Reprioritize goals** — \"Focus on blood sugar first, then cholesterol\"\n"
-            "📋 **Regenerate plan** — \"Create a new 7-day plan\"\n"
-            "💬 **Nutrition advice** — Ask me anything about your meals or lab results\n\n"
-            + (f"Your top priority right now: **{primary.get('label')}**." if primary else "")
+            f"Hi {user['first_name']} — I’m your Coach grounded in **your** labs and current week plan.\n\n"
+            "Ask things like:\n"
+            "• “How do I make tomorrow’s breakfast?”\n"
+            "• “Indian food” or “I want Mexican this week”\n"
+            "• “Change tofu to paneer”\n"
+            "• “Why is this meal good for my cholesterol?”"
+            + sample
         )
-
-    # Nutrition questions about specific foods
-    elif "?" in message or any(w in msg for w in ["why", "how", "what", "can i", "should i", "is it"]):
-        goals = get_goals_for_user(user_id, user)
-        primary_goal = goals[0]["goal_type"] if goals else "wellness"
-        lab = _get_latest_lab(user_id)
-
-        if "cholesterol" in msg or "ldl" in msg:
-            response_parts.append(
-                "For cholesterol management, focus on:\n"
-                "• Soluble fiber (oats, beans, apples) — can lower LDL by 5-10%\n"
-                "• Omega-3 fatty acids (salmon, walnuts, flaxseed)\n"
-                "• Limit saturated fat to <7% of calories\n"
-                "• Plant sterols from fortified foods\n\n"
-                "Your current plan is optimized for this. Want me to swap any ingredients?"
-            )
-        elif "sugar" in msg or "diabetes" in msg or "glucose" in msg:
-            response_parts.append(
-                "For blood sugar management:\n"
-                "• Choose low glycemic index foods (quinoa, lentils, sweet potato)\n"
-                "• Pair carbs with protein/fat to slow absorption\n"
-                "• Eat every 3-4 hours to prevent spikes\n"
-                "• Aim for 30g+ fiber daily\n\n"
-                "I can reprioritize this as your #1 goal if you'd like — just say \"focus on blood sugar first.\""
-            )
-        elif "paneer" in msg or "tofu" in msg:
-            response_parts.append(
-                "**Paneer vs Tofu:**\n"
-                "• Paneer: Higher protein (18g/100g), more calories, great for muscle maintenance\n"
-                "• Tofu: Lower calorie, complete plant protein, better for cholesterol goals\n\n"
-                "Say \"change tofu to paneer\" and I'll update your entire 7-day plan instantly!"
-            )
-        else:
-            response_parts.append(
-                f"Great question! Based on your {primary_goal.replace('_', ' ')} goal"
-                + (f" and your lab results showing {lab['interpretation']['summary']}" if lab else "")
-                + ", I'd recommend sticking with your current plan while we address your specific concern.\n\n"
-                "Could you be more specific? Or try:\n"
-                "• \"Change [ingredient] to [alternative]\"\n"
-                "• \"Focus on [goal] first\"\n"
-                "• \"Why is [food] in my plan?\""
-            )
-
-    else:
-        # Generic acknowledgment with suggestions
-        swap_from_guess = None
-        for word in ["tofu", "salmon", "chicken", "eggs", "paneer", "beef"]:
-            if word in msg and ("no" in msg or "don't" in msg or "hate" in msg or "dislike" in msg):
-                swap_from_guess = word
-                break
-
-        if swap_from_guess:
-            alts = get_substitution_options(swap_from_guess)
-            response_parts.append(
-                f"I hear you don't want {swap_from_guess}! Here are great alternatives: **{', '.join(alts[:4])}**.\n\n"
-                f"Just tell me which you'd prefer, e.g., \"Change {swap_from_guess} to {alts[0] if alts else 'paneer'}\"."
-            )
-        else:
-            response_parts.append(
-                "I'm here to help customize your diet plan! Try:\n"
-                "• \"Change tofu to paneer\"\n"
-                "• \"Focus on cholesterol first, then weight loss\"\n"
-                "• \"Generate a new plan\"\n"
-                "• \"Why is salmon in my dinner?\""
-            )
 
     return {
-        "message": "\n\n".join(response_parts),
+        "message": "\n\n".join(response_parts) if response_parts else "",
         "plan_modified": plan_modified,
         "goals_updated": goals_updated,
+        "handled": bool(response_parts),
         "suggestions": _get_quick_suggestions(user_id),
     }
 
 
 def _get_quick_suggestions(user_id: int) -> List[str]:
-    user = _get_user(user_id)
-    goals = get_goals_for_user(user_id, user)
+    plan = _current_plan(user_id)
     suggestions = [
-        "Change tofu to paneer in my plan",
-        "Generate a new 7-day plan",
+        "How do I make tomorrow’s breakfast?",
+        "Indian food this week",
+        "What’s on my plan for today?",
     ]
-    if len(goals) > 1:
-        g1 = goals[0].get("label", goals[0]["goal_type"])
-        g2 = goals[1].get("label", goals[1]["goal_type"])
-        suggestions.insert(0, f"Focus on {g2} first, then {g1}")
+    if plan:
+        tomorrow = date.today() + timedelta(days=1)
+        for meal in _meals_for_date(plan, tomorrow):
+            name = _meal_recipe(meal).get("name")
+            if name:
+                suggestions[0] = f"How do I cook {name}?"
+                break
     return suggestions[:4]
-
-
-async def _call_claude(system: str, history: List[Dict], message: str) -> Optional[str]:
-    if not settings.ANTHROPIC_API_KEY:
-        return None
-    try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        messages = [{"role": m["role"], "content": m["content"]} for m in history[-10:]]
-        messages.append({"role": "user", "content": message})
-
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1024,
-            system=system,
-            messages=messages,
-        )
-        return response.content[0].text
-    except Exception:
-        return None
 
 
 async def _call_openai(system: str, history: List[Dict], message: str) -> Optional[str]:
@@ -321,6 +784,7 @@ async def _call_openai(system: str, history: List[Dict], message: str) -> Option
         return None
     try:
         import openai
+
         client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
         messages = [{"role": "system", "content": system}]
         for m in history[-10:]:
@@ -330,39 +794,105 @@ async def _call_openai(system: str, history: List[Dict], message: str) -> Option
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            max_tokens=1024,
+            max_tokens=2000,
+            temperature=0.2,
         )
         return response.choices[0].message.content
     except Exception:
         return None
 
 
+async def _call_claude(system: str, history: List[Dict], message: str) -> Optional[str]:
+    if not settings.ANTHROPIC_API_KEY:
+        return None
+    try:
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        messages = [{"role": m["role"], "content": m["content"]} for m in history[-10:]]
+        messages.append({"role": "user", "content": message})
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            system=system,
+            messages=messages,
+            temperature=0.2,
+        )
+        return response.content[0].text
+    except Exception:
+        return None
+
+
 async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
-    """Process a user chat message and return AI response with any plan modifications."""
+    """
+    Process a user chat message.
+
+    Paths (demo-safe):
+      1) Structural plan edits (swap / regenerate / priorities)
+      2) Strict cook/plan questions → deterministic inventory (never invent dishes)
+      3) Everything else (incl. random demo asks) → OpenAI/Claude with full plan context
+      4) If LLMs fail → resilient coaching fallback (still never invents dishes)
+    """
     add_chat_message(user_id, "user", message)
 
-    # Always run rule-based actions first (swaps, priority changes)
-    rule_result = _rule_based_response(user_id, message)
+    # Hard block: weather / sports / trivia — never call LLM to answer those
+    if _is_off_topic(message):
+        final_message = _off_topic_redirect(user_id)
+        suggestions = _get_quick_suggestions(user_id)
+        add_chat_message(
+            user_id,
+            "assistant",
+            final_message,
+            {"plan_modified": False, "goals_updated": False, "suggestions": suggestions, "path": "off_topic"},
+        )
+        return {
+            "response": final_message,
+            "plan_modified": False,
+            "goals_updated": False,
+            "suggestions": suggestions,
+            "updated_plan_id": None,
+        }
 
-    # Try LLM for richer response if API key available
+    rule_result = _rule_based_actions(user_id, message)
+
+    grounded = None
+    if not rule_result["plan_modified"]:
+        grounded = _plan_grounded_answer(user_id, message)
+
     system = _build_system_context(user_id)
     history = get_chat_history(user_id)
 
-    llm_response = await _call_claude(system, history, message)
+    # LLM only for in-domain coaching (nutrition, labs, goals, plan, lifestyle tied to health)
+    llm_response = await _call_openai(system, history, message)
     if not llm_response:
-        llm_response = await _call_openai(system, history, message)
+        llm_response = await _call_claude(system, history, message)
 
-    if llm_response and not rule_result["plan_modified"]:
-        final_message = llm_response
-    elif llm_response and rule_result["plan_modified"]:
-        final_message = rule_result["message"] + "\n\n" + llm_response
-    else:
+    if rule_result["plan_modified"] and rule_result["message"]:
         final_message = rule_result["message"]
+        if llm_response:
+            final_message = final_message + "\n\n" + llm_response
+        path = "plan_edit"
+    elif grounded:
+        final_message = grounded
+        path = "plan_grounded"
+    elif rule_result.get("handled") and rule_result["message"]:
+        final_message = rule_result["message"]
+        path = "greeting"
+    elif llm_response:
+        final_message = llm_response
+        path = "llm"
+    else:
+        final_message = _resilient_general_answer(user_id, message)
+        path = "resilient_fallback"
 
+    suggestions = rule_result["suggestions"]
     metadata = {
         "plan_modified": rule_result["plan_modified"],
         "goals_updated": rule_result["goals_updated"],
-        "suggestions": rule_result["suggestions"],
+        "suggestions": suggestions,
+        "grounded": bool(grounded),
+        "path": path,
     }
 
     add_chat_message(user_id, "assistant", final_message, metadata)
@@ -373,6 +903,6 @@ async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
         "response": final_message,
         "plan_modified": rule_result["plan_modified"],
         "goals_updated": rule_result["goals_updated"],
-        "suggestions": rule_result["suggestions"],
+        "suggestions": suggestions,
         "updated_plan_id": plan["id"] if plan else None,
     }

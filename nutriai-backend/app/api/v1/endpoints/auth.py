@@ -71,6 +71,10 @@ def _user_payload(user) -> dict:
 
 
 def _needs_lab_import(db: Session, user_id: int) -> bool:
+    user = repo.get_user_by_id(db, user_id)
+    # Admins manage the cohort — skip patient lab onboarding
+    if user and getattr(user, "role", None) == "admin":
+        return False
     return len(repo.get_lab_results(db, user_id)) == 0
 
 

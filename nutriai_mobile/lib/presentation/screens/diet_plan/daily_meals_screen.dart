@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../data/models/diet_plan_model.dart';
 import '../../providers/diet_plan_provider.dart';
+import '../../widgets/craft/craft.dart';
 import 'recipe_detail_screen.dart';
 
 class DailyMealsScreen extends ConsumerWidget {
@@ -17,43 +20,75 @@ class DailyMealsScreen extends ConsumerWidget {
     required this.meals,
   });
 
+  static const _mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+  List<dynamic> get _orderedMeals {
+    final copy = List<dynamic>.from(meals);
+    copy.sort((a, b) {
+      final ai = _mealOrder.indexOf((a.mealType as String?)?.toLowerCase() ?? '');
+      final bi = _mealOrder.indexOf((b.mealType as String?)?.toLowerCase() ?? '');
+      return (ai < 0 ? 99 : ai).compareTo(bi < 0 ? 99 : bi);
+    });
+    return copy;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final parsedDate = DateTime.parse(date);
+    final ordered = _orderedMeals;
 
     return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Day $day'),
             Text(
-              DateFormat('EEEE, MMM dd').format(parsedDate),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
+              DateFormat('EEEE').format(parsedDate),
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+            Text(
+              DateFormat('MMM d · Day $day').format(parsedDate),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textSecondaryColor,
+              ),
             ),
           ],
         ),
       ),
-      body: meals.isEmpty
-          ? const Center(child: Text('No meals planned for this day'))
+      body: ordered.isEmpty
+          ? const CraftEmptyState(
+              icon: Icons.restaurant_menu_rounded,
+              title: 'No meals this day',
+              body: 'Rebuild the week from Plan, or ask Coach to fill this day.',
+            )
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
-                _buildDailySummary(),
-                const SizedBox(height: 24),
-                ...meals.map((meal) => _buildMealCard(context, ref, meal)).toList(),
+                _buildDailySummary(ordered).craftIn(),
+                const SizedBox(height: 18),
+                CraftSectionHeader(
+                  title: 'Meals',
+                  subtitle: '${ordered.length} plated · breakfast → snack',
+                ).craftIn(delayMs: 40),
+                const SizedBox(height: 12),
+                ...ordered.asMap().entries.map(
+                      (e) => _buildMealCard(context, ref, e.value).craftIn(delayMs: 70 + e.key * 40),
+                    ),
               ],
             ),
     );
   }
 
-  Widget _buildDailySummary() {
+  Widget _buildDailySummary(List<dynamic> ordered) {
     int totalCalories = 0;
     double totalProtein = 0;
     double totalCarbs = 0;
     double totalFat = 0;
 
-    for (var meal in meals) {
+    for (var meal in ordered) {
       if (meal.recipe != null) {
         totalCalories += meal.recipe.nutrition.calories as int;
         totalProtein += meal.recipe.nutrition.proteinG;
@@ -63,36 +98,26 @@ class DailyMealsScreen extends ConsumerWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Daily Summary',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Text(
+            'Daily nutrition',
+            style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNutrientItem('Calories', totalCalories.toString(), 'kcal', AppTheme.primaryColor),
-              _buildNutrientItem('Protein', totalProtein.toStringAsFixed(1), 'g', Colors.red),
-              _buildNutrientItem('Carbs', totalCarbs.toStringAsFixed(1), 'g', Colors.orange),
-              _buildNutrientItem('Fat', totalFat.toStringAsFixed(1), 'g', Colors.blue),
+              Expanded(child: _Nutrient(label: 'Calories', value: '$totalCalories', unit: 'kcal', color: AppTheme.primaryColor)),
+              Expanded(child: _Nutrient(label: 'Protein', value: totalProtein.toStringAsFixed(0), unit: 'g', color: AppTheme.accentColor)),
+              Expanded(child: _Nutrient(label: 'Carbs', value: totalCarbs.toStringAsFixed(0), unit: 'g', color: const Color(0xFFC47A1A))),
+              Expanded(child: _Nutrient(label: 'Fat', value: totalFat.toStringAsFixed(0), unit: 'g', color: const Color(0xFF1B4F72))),
             ],
           ),
         ],
@@ -100,53 +125,31 @@ class DailyMealsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildNutrientItem(String label, String value, String unit, Color color) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.textSecondaryColor,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          unit,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.textSecondaryColor,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildMealCard(BuildContext context, WidgetRef ref, dynamic meal) {
     final recipe = meal.recipe;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.borderSubtle),
+      ),
       child: InkWell(
+        borderRadius: BorderRadius.circular(20),
         onTap: recipe != null
             ? () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => RecipeDetailScreen(recipeId: meal.recipeId),
+                    builder: (_) => RecipeDetailScreen(
+                      recipeId: meal.recipeId,
+                      initialRecipe: recipe is Recipe ? recipe : null,
+                    ),
                   ),
                 );
               }
             : null,
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -155,34 +158,29 @@ class DailyMealsScreen extends ConsumerWidget {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: _getMealTypeColor(meal.mealType).withOpacity(0.1),
+                      color: AppTheme.chipBg,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       _formatMealType(meal.mealType),
-                      style: TextStyle(
-                        color: _getMealTypeColor(meal.mealType),
+                      style: GoogleFonts.plusJakartaSans(
+                        color: AppTheme.primaryColor,
                         fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
                   const Spacer(),
                   if (recipe != null)
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 16, color: AppTheme.textSecondaryColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${recipe.totalTimeMinutes} min',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSecondaryColor,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      '${recipe.totalTimeMinutes} min · ${recipe.nutrition.calories} kcal',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: AppTheme.textSecondaryColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                 ],
               ),
@@ -190,92 +188,112 @@ class DailyMealsScreen extends ConsumerWidget {
               if (recipe != null) ...[
                 if (recipe.imageUrl.isNotEmpty)
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     child: Image.network(
                       recipe.imageUrl,
-                      height: 180,
+                      height: 160,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
-                          height: 180,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.restaurant, size: 48, color: Colors.grey),
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: AppTheme.chipBg,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(Icons.restaurant, size: 40, color: AppTheme.primaryColor),
                         );
                       },
                     ),
                   ),
-                const SizedBox(height: 12),
+                if (recipe.imageUrl.isNotEmpty) const SizedBox(height: 12),
                 Text(
                   recipe.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   recipe.description,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.5,
+                    height: 1.4,
                     color: AppTheme.textSecondaryColor,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _buildRecipeInfo(Icons.local_fire_department, '${recipe.nutrition.calories} cal'),
-                    const SizedBox(width: 16),
-                    _buildRecipeInfo(Icons.restaurant, recipe.cuisineType),
-                    const SizedBox(width: 16),
-                    _buildRecipeInfo(Icons.signal_cellular_alt, recipe.difficulty),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: recipe.dietaryTags.take(3).map<Widget>((tag) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        tag,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppTheme.primaryColor,
+                  children: [
+                    ProvenanceChip(label: recipe.cuisineType, icon: Icons.public),
+                    ProvenanceChip(label: recipe.difficulty, icon: Icons.signal_cellular_alt),
+                    ...recipe.dietaryTags.take(2).map<Widget>(
+                          (tag) => ProvenanceChip(label: tag.toString()),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => _dislikeMeal(context, ref, meal),
-                    icon: const Icon(Icons.swap_horiz, size: 18),
-                    label: const Text("Don't like this — swap"),
-                  ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _logAdherence(context, ref, meal, 'done'),
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: const Text('Done'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _logAdherence(context, ref, meal, 'skipped'),
+                      icon: const Icon(Icons.skip_next_rounded, size: 18),
+                      label: const Text('Skipped'),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => _dislikeMeal(context, ref, meal),
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                      label: const Text('Swap'),
+                    ),
+                  ],
                 ),
               ] else
                 Text(
-                  'Recipe ID: ${meal.recipeId}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.textSecondaryColor,
-                  ),
+                  'Recipe unavailable',
+                  style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondaryColor),
                 ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _logAdherence(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic meal,
+    String status,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await ref.read(dietPlanNotifierProvider.notifier).logMealAdherence(
+            day: meal.day as int,
+            mealType: meal.mealType as String,
+            status: status,
+            recipeName: meal.recipe?.name as String?,
+            date: meal.date as String?,
+          );
+      if (!context.mounted) return;
+      final msg = result['message']?.toString() ??
+          (status == 'done' ? 'Logged as done' : 'Logged as skipped');
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Could not log meal: $e'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
   }
 
   Future<void> _dislikeMeal(BuildContext context, WidgetRef ref, dynamic meal) async {
@@ -293,43 +311,47 @@ class DailyMealsScreen extends ConsumerWidget {
       }
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Could not swap meal: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Could not swap meal: $e'), backgroundColor: AppTheme.errorColor),
       );
-    }
-  }
-
-  Widget _buildRecipeInfo(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppTheme.textSecondaryColor),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.textSecondaryColor,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Color _getMealTypeColor(String mealType) {
-    switch (mealType.toLowerCase()) {
-      case 'breakfast':
-        return Colors.orange;
-      case 'lunch':
-        return Colors.green;
-      case 'dinner':
-        return Colors.blue;
-      case 'snack':
-        return Colors.purple;
-      default:
-        return AppTheme.primaryColor;
     }
   }
 
   String _formatMealType(String mealType) {
     return mealType[0].toUpperCase() + mealType.substring(1).toLowerCase();
+  }
+}
+
+class _Nutrient extends StatelessWidget {
+  final String label;
+  final String value;
+  final String unit;
+  final Color color;
+
+  const _Nutrient({
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppTheme.textSecondaryColor),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: color),
+        ),
+        Text(
+          unit,
+          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppTheme.textSecondaryColor),
+        ),
+      ],
+    );
   }
 }

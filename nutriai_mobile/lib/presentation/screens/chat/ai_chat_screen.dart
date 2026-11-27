@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/chat_model.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/diet_plan_provider.dart';
+import '../../widgets/craft/craft.dart';
 
 class AiChatScreen extends ConsumerStatefulWidget {
   const AiChatScreen({super.key});
@@ -94,11 +96,52 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                     padding: const EdgeInsets.all(16),
                     itemCount: chatState.messages.length + (chatState.isLoading ? 1 : 0),
                     itemBuilder: (context, index) {
-                      if (index == chatState.messages.length) return _buildTypingIndicator();
+                      if (index == chatState.messages.length) {
+                        return _buildTypingIndicator(
+                          chatState.statusMessage ?? 'Thinking with your labs…',
+                        );
+                      }
                       return _buildMessageBubble(chatState.messages[index]);
                     },
                   ),
           ),
+          if (chatState.isLoading &&
+              (chatState.statusMessage?.toLowerCase().contains('rebuild') ?? false))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.chipBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.primaryColor.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        chatState.statusMessage!,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (chatState.suggestions.isNotEmpty && !chatState.isLoading)
             _buildSuggestions(chatState.suggestions),
           _buildInputBar(chatState.isLoading),
@@ -108,30 +151,23 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
   }
 
   Widget _buildWelcomeBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: AppTheme.primaryColor.withOpacity(0.08),
-      child: const Row(
-        children: [
-          Icon(Icons.psychology, color: AppTheme.primaryColor, size: 20),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Swap ingredients, reprioritize goals, or regenerate your 7-day plan',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondaryColor),
-            ),
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: TrustBanner(
+        verified: true,
+        title: 'Nutrition coaching only',
+        subtitle:
+            'Ask about your plan, cooking steps, labs, or goals. Unrelated asks (weather, sports, trivia) get a short redirect — not an answer.',
+        sources: const ['scope: labs + plan + goals', 'OpenAI when needed'],
       ),
     );
   }
 
   Widget _buildEmptyState(List<String> suggestions) {
     final defaults = [
-      'Change tofu to paneer in my plan',
-      'Generate a new 7-day plan',
-      'Focus on cholesterol first, then weight loss',
+      'How do I make tomorrow’s breakfast?',
+      'Indian food this week',
+      'What’s on my plan for today?',
     ];
     final chips = suggestions.isNotEmpty ? suggestions : defaults;
 
@@ -139,21 +175,35 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          const SizedBox(height: 40),
-          Icon(Icons.chat_bubble_outline, size: 64, color: AppTheme.primaryColor.withOpacity(0.4)),
-          const SizedBox(height: 16),
-          const Text('Your Personal AI Dietitian', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppTheme.chipBg,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Icon(Icons.auto_awesome, size: 34, color: AppTheme.primaryColor),
+          ).craftIn(),
+          const SizedBox(height: 18),
+          Text(
+            'Your personal AI dietitian',
+            style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800),
+          ).craftIn(delayMs: 40),
           const SizedBox(height: 8),
-          const Text(
-            'I know your lab results, health goals, and meal plan. Tell me what to change!',
-            style: TextStyle(color: AppTheme.textSecondaryColor),
+          Text(
+            'I know your lab results, health goals, and meal plan. Tell me what to change.',
+            style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondaryColor, height: 1.4),
             textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          ...chips.map((s) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _SuggestionChip(label: s, onTap: () => _sendMessage(s)),
-              )),
+          ).craftIn(delayMs: 80),
+          const SizedBox(height: 28),
+          ...chips.asMap().entries.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _SuggestionChip(label: e.value, onTap: () => _sendMessage(e.value))
+                      .craftIn(delayMs: 110 + e.key * 40),
+                ),
+              ),
         ],
       ),
     );
@@ -168,31 +218,58 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
         decoration: BoxDecoration(
-          color: isUser ? AppTheme.primaryColor : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(16),
+          color: isUser ? AppTheme.primaryColor : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: isUser ? null : Border.all(color: AppTheme.borderSubtle),
         ),
         child: Text(
           message.content,
-          style: TextStyle(fontSize: 14, color: isUser ? Colors.white : Colors.black87, height: 1.4),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: isUser ? Colors.white : AppTheme.ink,
+            height: 1.45,
+          ),
         ),
       ),
-    );
+    ).craftIn(durationMs: 280);
   }
 
-  Widget _buildTypingIndicator() {
-    return const Align(
+  Widget _buildTypingIndicator(String status) {
+    return Align(
       alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: EdgeInsets.all(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12, left: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.borderSubtle),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 8),
-            Text('Thinking...', style: TextStyle(color: AppTheme.textSecondaryColor)),
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppTheme.primaryColor.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                status,
+                style: GoogleFonts.plusJakartaSans(
+                  color: AppTheme.textSecondaryColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ],
         ),
-      ),
+      ).craftIn(),
     );
   }
 
@@ -258,15 +335,19 @@ class _SuggestionChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          border: Border.all(color: AppTheme.primaryColor.withOpacity(0.3)),
-          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          border: Border.all(color: AppTheme.borderSubtle),
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 13)),
+        child: Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }

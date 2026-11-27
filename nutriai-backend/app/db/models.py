@@ -102,3 +102,31 @@ class UserPreferenceRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class NutritionDecisionRecord(Base):
+    """Every plan's calorie/macro decision — fuel for the learning engine."""
+
+    __tablename__ = "nutrition_decisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    plan_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    segment: Mapped[str] = mapped_column(String(120), index=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NutritionCalibrationRecord(Base):
+    """
+    Per-segment learned biases (calorie/macro). Updated from outcomes so the
+    nutrition engine improves without shipping new code.
+    """
+
+    __tablename__ = "nutrition_calibrations"
+
+    segment: Mapped[str] = mapped_column(String(120), primary_key=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

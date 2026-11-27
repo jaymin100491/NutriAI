@@ -1,15 +1,69 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../core/network/cold_start.dart';
 import '../../core/network/dio_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../models/auth_models.dart';
 import 'labcorp_portal_repository.dart';
 
+typedef AuthStatusCallback = void Function(String message);
+
 class AuthRepository {
   final Dio _dio = DioClient().dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final LabcorpPortalRepository _portalRepository = LabcorpPortalRepository();
+
+  Options get _authOptions => Options(
+        sendTimeout: const Duration(milliseconds: ApiConstants.authConnectionTimeout),
+        receiveTimeout: const Duration(milliseconds: ApiConstants.authReceiveTimeout),
+      );
+
+  /// Ping API root to wake a sleeping free-tier Render instance.
+  Future<void> warmUpServer({AuthStatusCallback? onStatus}) async {
+    onStatus?.call('Waking up server…');
+    try {
+      await _dio.get(
+        '/',
+        options: Options(
+          sendTimeout: const Duration(milliseconds: ApiConstants.authConnectionTimeout),
+          receiveTimeout: const Duration(milliseconds: ApiConstants.authReceiveTimeout),
+          validateStatus: (_) => true,
+        ),
+      );
+    } catch (_) {
+      // Ignore — login retries will keep trying.
+    }
+  }
+
+  Future<T> _withColdStartRetry<T>(
+    Future<T> Function() action, {
+    AuthStatusCallback? onStatus,
+  }) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= ApiConstants.authMaxAttempts; attempt++) {
+      try {
+        if (attempt == 1) {
+          await warmUpServer(onStatus: onStatus);
+          onStatus?.call('Signing in…');
+        } else {
+          onStatus?.call(
+            'Server waking up (attempt $attempt of ${ApiConstants.authMaxAttempts})…',
+          );
+          await Future<void>.delayed(
+            const Duration(milliseconds: ApiConstants.authRetryDelayMs),
+          );
+        }
+        return await action();
+      } catch (e) {
+        lastError = e;
+        if (!isTransientNetworkError(e) || attempt == ApiConstants.authMaxAttempts) {
+          throw Exception(friendlyAuthError(e));
+        }
+      }
+    }
+    throw Exception(friendlyAuthError(lastError ?? 'Unknown auth error'));
+  }
 
   Future<Map<String, String>> startOktaLogin() async {
     final response = await _dio.get(ApiConstants.oktaAuthorize);
@@ -39,24 +93,44 @@ class AuthRepository {
     return authResponse;
   }
 
-  Future<AuthResponse> login(LoginRequest request) async {
-    final response = await _dio.post(
-      ApiConstants.login,
-      data: request.toJson(),
+  Future<AuthResponse> login(
+    LoginRequest request, {
+    AuthStatusCallback? onStatus,
+  }) async {
+    return _withColdStartRetry(
+      () async {
+        final response = await _dio.post(
+          ApiConstants.login,
+          data: request.toJson(),
+          options: _authOptions,
+        );
+        final authResponse =
+            AuthResponse.fromJson(response.data as Map<String, dynamic>);
+        await _persistSession(authResponse);
+        return authResponse;
+      },
+      onStatus: onStatus,
     );
-    final authResponse = AuthResponse.fromJson(response.data as Map<String, dynamic>);
-    await _persistSession(authResponse);
-    return authResponse;
   }
 
-  Future<AuthResponse> signup(SignupRequest request) async {
-    final response = await _dio.post(
-      ApiConstants.signup,
-      data: request.toJson(),
+  Future<AuthResponse> signup(
+    SignupRequest request, {
+    AuthStatusCallback? onStatus,
+  }) async {
+    return _withColdStartRetry(
+      () async {
+        final response = await _dio.post(
+          ApiConstants.signup,
+          data: request.toJson(),
+          options: _authOptions,
+        );
+        final authResponse =
+            AuthResponse.fromJson(response.data as Map<String, dynamic>);
+        await _persistSession(authResponse);
+        return authResponse;
+      },
+      onStatus: onStatus,
     );
-    final authResponse = AuthResponse.fromJson(response.data as Map<String, dynamic>);
-    await _persistSession(authResponse);
-    return authResponse;
   }
 
   Future<void> _persistSession(AuthResponse authResponse) async {

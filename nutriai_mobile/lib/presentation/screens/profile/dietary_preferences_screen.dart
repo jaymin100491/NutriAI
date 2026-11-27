@@ -34,7 +34,9 @@ class _DietaryPreferencesScreenState
   String _dietaryPreference = 'omnivore';
   final Set<String> _cuisines = {};
   final List<String> _dislikes = [];
+  List<Map<String, dynamic>> _history = [];
   final _dislikeController = TextEditingController();
+  final _cuisineController = TextEditingController();
   bool _loading = true;
   bool _saving = false;
 
@@ -47,7 +49,17 @@ class _DietaryPreferencesScreenState
   @override
   void dispose() {
     _dislikeController.dispose();
+    _cuisineController.dispose();
     super.dispose();
+  }
+
+  void _addCuisine() {
+    final c = _cuisineController.text.trim();
+    if (c.isEmpty) return;
+    setState(() {
+      _cuisines.add(c);
+      _cuisineController.clear();
+    });
   }
 
   Future<void> _load() async {
@@ -69,6 +81,12 @@ class _DietaryPreferencesScreenState
           ..addAll(
             ((prefs['dislikes'] as List?) ?? const []).map((e) => e.toString()),
           );
+        _history = ((prefs['preference_history'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList()
+            .reversed
+            .take(8)
+            .toList();
         _loading = false;
       });
     } catch (_) {
@@ -90,9 +108,7 @@ class _DietaryPreferencesScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _dietaryPreference == 'vegetarian' || _dietaryPreference == 'vegan'
-                ? 'Saved — regenerating a $_dietaryPreference meal plan…'
-                : 'Saved — your meal plan was regenerated for $_dietaryPreference.',
+            'Saved as $_dietaryPreference. Today & past meals stay; remaining days of this week were updated.',
           ),
         ),
       );
@@ -134,8 +150,8 @@ class _DietaryPreferencesScreenState
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'We’ll rebuild your 7-day plan when you save — veg, non-veg, or plant-based.',
-                  style: TextStyle(color: AppTheme.textSecondaryColor),
+                  'Changing diet mid-week keeps today’s and past meals. Only remaining days are rebuilt to match.',
+                  style: TextStyle(color: AppTheme.textSecondaryColor, height: 1.35),
                 ),
                 const SizedBox(height: 16),
                 ..._dietOptions.map((opt) {
@@ -159,26 +175,62 @@ class _DietaryPreferencesScreenState
                   'Favorite cuisines',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  'Pick presets or type any cuisine (e.g. Mexican, Ethiopian, Korean). '
+                  'With an AI key configured, NutriAI generates meals on the fly — not limited to a fixed menu.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700], height: 1.35),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _cuisineOptions.map((c) {
-                    final selected = _cuisines.contains(c);
-                    return FilterChip(
-                      label: Text(c),
-                      selected: selected,
-                      onSelected: (on) {
-                        setState(() {
-                          if (on) {
-                            _cuisines.add(c);
-                          } else {
-                            _cuisines.remove(c);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
+                  children: [
+                    ..._cuisineOptions.map((c) {
+                      final selected = _cuisines.contains(c);
+                      return FilterChip(
+                        label: Text(c),
+                        selected: selected,
+                        onSelected: (on) {
+                          setState(() {
+                            if (on) {
+                              _cuisines.add(c);
+                            } else {
+                              _cuisines.remove(c);
+                            }
+                          });
+                        },
+                      );
+                    }),
+                    ..._cuisines
+                        .where((c) => !_cuisineOptions.contains(c))
+                        .map(
+                          (c) => InputChip(
+                            label: Text(c),
+                            onDeleted: () => setState(() => _cuisines.remove(c)),
+                          ),
+                        ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _cuisineController,
+                        decoration: const InputDecoration(
+                          hintText: 'Add any cuisine, e.g. Mexican',
+                          border: OutlineInputBorder(),
+                        ),
+                        onSubmitted: (_) => _addCuisine(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _addCuisine,
+                      child: const Text('Add'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 const Text(
@@ -236,8 +288,34 @@ class _DietaryPreferencesScreenState
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Save & regenerate meal plan'),
+                      : const Text('Save & update remaining days'),
                 ),
+                if (_history.isNotEmpty) ...[
+                  const SizedBox(height: 28),
+                  const Text(
+                    'Preference history',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._history.map((h) {
+                    final from = (h['from'] as Map?)?['dietary_preference'] ?? '—';
+                    final to = (h['to'] as Map?)?['dietary_preference'] ?? '—';
+                    final when = h['changed_at']?.toString() ?? '';
+                    final scope = h['scope']?.toString() ?? '';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        dense: true,
+                        title: Text('$from → $to'),
+                        subtitle: Text(
+                          '$when\n$scope',
+                          style: const TextStyle(fontSize: 12, height: 1.3),
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
     );

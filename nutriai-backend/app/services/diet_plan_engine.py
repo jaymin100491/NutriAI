@@ -256,11 +256,12 @@ def _filter_recipes_for_user(
         if blocked:
             continue
 
+        protein = (r.get("primary_protein") or "").lower()
+        haystack = f"{haystack} {protein}"
         if dietary == "vegetarian":
-            if tags & {"vegan", "vegetarian"}:
-                pass
-            elif any(p in haystack for p in meat_tokens):
+            if any(p in haystack for p in meat_tokens):
                 continue
+            # Prefer tagged veg; untagged without meat tokens is allowed
         elif dietary == "pescatarian":
             if any(p in haystack for p in land_meat):
                 continue

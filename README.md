@@ -4,6 +4,8 @@ AI-powered personalized nutrition coaching from lab results.
 
 **Production flow:** sign up → upload lab PDF or paste markers → Mon–Sun diet plan in about a minute → daily biometrics → next week’s plan prepared every Friday → past-plan history → admin panel.
 
+**Stakeholder demo cohort:** 55 illustrative personas with longitudinal labs, mixed outcomes, meal swaps, and sample Labcorp-style retest orders — see [DEMO_COHORT.md](./DEMO_COHORT.md).
+
 ## Projects
 
 | Folder | Stack | Purpose |
@@ -63,4 +65,4 @@ See [DEPLOY.md](./DEPLOY.md). Short version:
 
 Copy `nutriai-backend/.env.example` → `.env`. Do not commit secrets.
 
-Optional AI keys (goal interpretation / chat): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+**AI keys (live product):** set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` so weekly plans generate meals **on the fly** for any diet + cuisine (e.g. Mexican vegetarian). Without a key, the professional catalog is used as fallback. Also powers free-text goal interpretation / chat.

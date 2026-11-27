@@ -20,6 +20,10 @@ from app.services.diet_plan_engine import generate_diet_plan
 DEMO_EMAIL = "jaymin@nutriai.app"
 DEMO_PASSWORD_HINT = "demo"
 
+# Live pitch account — empty labs; upload PDFs at first login during demo
+PITCH_EMAIL = "jayminp@nutriai.app"
+PITCH_PASSWORD_HINT = "demo"
+
 
 def _marker(
     name: str,
@@ -233,7 +237,15 @@ def seed_demo_workspace(db: Session, user: User | None = None) -> User:
     """Idempotent seed: labs, goals, current plan, preferences, plan history."""
     user = user or ensure_demo_user(db)
 
-    labs = build_demo_lab_timeline(user.id)
+    # Prefer real Labcorp timeline (7 Patient Reports) for jaymin@ pitch demos
+    try:
+        from app.db.seed_jaymin_real_labs import PATIENT_DEMOGRAPHICS, build_jaymin_real_lab_timeline
+
+        labs = build_jaymin_real_lab_timeline(user.id)
+        demographics = dict(PATIENT_DEMOGRAPHICS or {})
+    except Exception:
+        labs = build_demo_lab_timeline(user.id)
+        demographics = {"sex": "male", "date_of_birth": "1991-04-10"}
     repo.save_lab_results(db, user.id, labs)
 
     prefs = get_user_preferences(user.id)
@@ -244,60 +256,25 @@ def seed_demo_workspace(db: Session, user: User | None = None) -> User:
             "dietary_preference": "omnivore",
             "favorites": ["paneer", "lentils", "salmon"],
             "substitutions": {"tofu": "paneer"},
+            "sex": demographics.get("sex") or prefs.get("sex") or "male",
+            "date_of_birth": demographics.get("date_of_birth") or prefs.get("date_of_birth") or "1991-04-10",
+            "activity_level": prefs.get("activity_level") or "moderate",
+            "demographics_complete": True,
         }
     )
     set_user_preferences(user.id, prefs)
 
-    goals = [
+    from app.services.goal_service import derive_goals_from_labs
+
+    goals = derive_goals_from_labs(
+        labs,
         {
-            "id": 1,
-            "goal_type": "lower_cholesterol",
-            "label": "Optimize LDL Cholesterol",
-            "priority": 1,
-            "current_value": 107,
-            "target_value": 99,
-            "unit": "mg/dL",
-            "status": "improving",
-            "baseline_value": 154,
-            "notes": "Down from 154 (2023) → 107 (2026) on NutriAI coaching",
+            "id": user.id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
         },
-        {
-            "id": 2,
-            "goal_type": "manage_diabetes",
-            "label": "Maintain Healthy A1c",
-            "priority": 2,
-            "current_value": 5.4,
-            "target_value": 5.4,
-            "unit": "%",
-            "status": "achieved",
-            "baseline_value": 6.2,
-            "notes": "A1c improved from 6.2% to 5.4%",
-        },
-        {
-            "id": 3,
-            "goal_type": "weight_loss",
-            "label": "Sustain Healthy Weight",
-            "priority": 3,
-            "current_value": 180,
-            "target_value": 175,
-            "unit": "lbs",
-            "status": "improving",
-            "baseline_value": 198,
-            "notes": "18 lbs down since 2023 with global cuisine meal plans",
-        },
-        {
-            "id": 4,
-            "goal_type": "lower_blood_pressure",
-            "label": "Blood Pressure Support",
-            "priority": 4,
-            "current_value": 122,
-            "target_value": 120,
-            "unit": "mmHg",
-            "status": "improving",
-            "baseline_value": 138,
-            "notes": "Systolic 138 → 122 with DASH-style + Indian/Med meals",
-        },
-    ]
+    )
     set_user_goals(user.id, goals)
 
     # Historical archived plans (for demo narrative)
@@ -441,3 +418,44 @@ def seed_biometric_history(db: Session, user_id: int) -> None:
     # Dedupe by date
     by_date = {e["date"]: e for e in entries}
     repo.replace_tracking_entries(db, user_id, list(by_date.values()))
+
+
+def seed_pitch_demo_user(db: Session) -> User:
+    """
+    Empty-lab pitch account for live PDF upload demos.
+    Login: jayminp@nutriai.app / demo — no pre-seeded labs or plans.
+    """
+    from app.core.security import get_password_hash
+
+    user = repo.get_user_by_email(db, PITCH_EMAIL)
+    if user is None:
+        user = repo.create_password_user(
+            db,
+            email=PITCH_EMAIL,
+            password_hash=get_password_hash(PITCH_PASSWORD_HINT),
+            first_name="Jaymin",
+            last_name="Patel",
+        )
+    else:
+        user.password_hash = get_password_hash(PITCH_PASSWORD_HINT)
+        user.first_name = user.first_name or "Jaymin"
+        user.last_name = user.last_name or "Patel"
+        user.is_active = True
+        user.subscription_tier = "premium"
+        db.commit()
+        db.refresh(user)
+
+    # Ensure blank slate for first-login PDF import (do not wipe if labs already uploaded)
+    existing_labs = repo.get_lab_results(db, user.id)
+    if not existing_labs:
+        prefs = get_user_preferences(user.id)
+        prefs.update(
+            {
+                "dislikes": [],
+                "cuisine_preferences": ["Indian", "Mediterranean", "Mexican"],
+                "dietary_preference": "omnivore",
+                "favorites": [],
+            }
+        )
+        set_user_preferences(user.id, prefs)
+    return user

@@ -1,5 +1,37 @@
 import 'package:equatable/equatable.dart';
 
+int _asInt(dynamic v, [int fallback = 0]) {
+  if (v == null) return fallback;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString()) ?? fallback;
+}
+
+String _asString(dynamic v, [String fallback = '']) {
+  if (v == null) return fallback;
+  return v.toString();
+}
+
+bool _asBool(dynamic v, [bool fallback = false]) {
+  if (v is bool) return v;
+  if (v == null) return fallback;
+  final s = v.toString().toLowerCase();
+  if (s == 'true' || s == '1') return true;
+  if (s == 'false' || s == '0') return false;
+  return fallback;
+}
+
+Map<String, dynamic> _asMap(dynamic v) {
+  if (v is Map<String, dynamic>) return v;
+  if (v is Map) return Map<String, dynamic>.from(v);
+  return <String, dynamic>{};
+}
+
+List<String> _asStringList(dynamic v) {
+  if (v is! List) return const [];
+  return v.map((e) => e.toString()).toList();
+}
+
 class LabResult extends Equatable {
   final int id;
   final int userId;
@@ -29,35 +61,44 @@ class LabResult extends Equatable {
 
   factory LabResult.fromJson(Map<String, dynamic> json) {
     final markers = <LabMarker>[];
-    final tests = json['results']?['tests'] as List<dynamic>? ?? [];
-
-    for (final test in tests) {
-      markers.add(LabMarker.fromBackendTest(test as Map<String, dynamic>));
+    final results = _asMap(json['results']);
+    final tests = results['tests'];
+    if (tests is List) {
+      for (final test in tests) {
+        try {
+          markers.add(LabMarker.fromBackendTest(_asMap(test)));
+        } catch (_) {
+          // Skip malformed marker rows.
+        }
+      }
     }
 
-    final interpretation = json['interpretation'] as Map<String, dynamic>?;
-    final labcorpJson = json['labcorp'] as Map<String, dynamic>?;
+    final interpretation = _asMap(json['interpretation']);
+    final labcorpJson = json['labcorp'];
 
     return LabResult(
-      id: json['id'] as int,
-      userId: json['user_id'] as int,
-      testDate: json['test_date'] as String,
-      panelTitle: json['panel_title'] as String?,
-      source: json['source'] as String? ?? 'labcorp',
+      id: _asInt(json['id']),
+      userId: _asInt(json['user_id']),
+      testDate: _asString(json['test_date']),
+      panelTitle: json['panel_title']?.toString(),
+      source: _asString(json['source'], 'labcorp'),
       markers: markers,
-      aiInterpretation: interpretation?['summary'] as String?,
-      concerns: interpretation?['concerns'] != null
-          ? (interpretation!['concerns'] as List<dynamic>).map((e) => e.toString()).toList()
+      aiInterpretation: interpretation['summary']?.toString(),
+      concerns: interpretation['concerns'] != null
+          ? _asStringList(interpretation['concerns'])
           : null,
-      recommendations: interpretation?['recommendations'] != null
-          ? (interpretation!['recommendations'] as List<dynamic>).map((e) => e.toString()).toList()
+      recommendations: interpretation['recommendations'] != null
+          ? _asStringList(interpretation['recommendations'])
           : null,
-      abnormalCount: interpretation?['abnormal_count'] as int?,
-      labcorp: labcorpJson != null ? LabcorpMetadata.fromJson(labcorpJson) : null,
+      abnormalCount: interpretation['abnormal_count'] == null
+          ? null
+          : _asInt(interpretation['abnormal_count']),
+      labcorp: labcorpJson is Map ? LabcorpMetadata.fromJson(_asMap(labcorpJson)) : null,
     );
   }
 
-  String get testType => panelTitle ?? (markers.isNotEmpty ? markers.first.category : 'Lab Panel');
+  String get testType =>
+      panelTitle ?? (markers.isNotEmpty ? markers.first.category : 'Lab Panel');
 
   bool get hasAbnormalMarkers => markers.any((m) => !m.isNormal);
 
@@ -68,7 +109,7 @@ class LabResult extends Equatable {
 }
 
 class LabcorpMetadata extends Equatable {
-  final int pid;
+  final int? pid;
   final String patientName;
   final String accountName;
   final String orderingProvider;
@@ -76,7 +117,7 @@ class LabcorpMetadata extends Equatable {
   final String reportDate;
 
   const LabcorpMetadata({
-    required this.pid,
+    this.pid,
     required this.patientName,
     required this.accountName,
     required this.orderingProvider,
@@ -86,12 +127,12 @@ class LabcorpMetadata extends Equatable {
 
   factory LabcorpMetadata.fromJson(Map<String, dynamic> json) {
     return LabcorpMetadata(
-      pid: json['pid'] as int,
-      patientName: json['patient_name'] as String,
-      accountName: json['account_name'] as String,
-      orderingProvider: json['ordering_provider'] as String,
-      dashboardCategory: json['dashboard_category'] as String,
-      reportDate: json['report_date'] as String,
+      pid: json['pid'] == null ? null : _asInt(json['pid']),
+      patientName: _asString(json['patient_name'], 'Patient'),
+      accountName: _asString(json['account_name'], 'Imported'),
+      orderingProvider: _asString(json['ordering_provider'], 'Provider'),
+      dashboardCategory: _asString(json['dashboard_category'], 'recently_viewed'),
+      reportDate: _asString(json['report_date']),
     );
   }
 
@@ -122,14 +163,14 @@ class LabMarker extends Equatable {
 
   factory LabMarker.fromBackendTest(Map<String, dynamic> json) {
     return LabMarker(
-      name: json['name'] as String,
+      name: _asString(json['name'], 'Marker'),
       value: json['value'],
-      unit: json['unit'] as String? ?? '',
-      referenceRange: json['reference_range'] as String? ?? '',
-      status: json['status'] as String? ?? 'normal',
-      category: json['category'] as String? ?? 'General',
-      testCode: json['test_code'] as String?,
-      nutritionRelevant: json['nutrition_relevant'] as bool? ?? true,
+      unit: _asString(json['unit']),
+      referenceRange: _asString(json['reference_range']),
+      status: _asString(json['status'], 'normal'),
+      category: _asString(json['category'], 'General'),
+      testCode: json['test_code']?.toString(),
+      nutritionRelevant: _asBool(json['nutrition_relevant'], true),
     );
   }
 

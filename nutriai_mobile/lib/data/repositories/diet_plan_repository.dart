@@ -1,6 +1,13 @@
+import 'package:dio/dio.dart';
+
 import '../../core/constants/api_constants.dart';
 import '../../core/network/dio_client.dart';
 import '../models/diet_plan_model.dart';
+
+Options get _aiPlanOptions => Options(
+      sendTimeout: const Duration(milliseconds: ApiConstants.aiPlanConnectionTimeout),
+      receiveTimeout: const Duration(milliseconds: ApiConstants.aiPlanReceiveTimeout),
+    );
 
 class DietPlanHistoryResponse {
   final List<Map<String, dynamic>> plans;
@@ -52,7 +59,7 @@ class DietPlanRepository {
 
   Future<DietPlan> generateWeeklyPlan({bool nextWeek = false}) async {
     final path = nextWeek ? ApiConstants.dietPlanWeeklyNext : ApiConstants.dietPlanWeeklyGenerate;
-    final response = await _dioClient.dio.post(path);
+    final response = await _dioClient.dio.post(path, options: _aiPlanOptions);
     return DietPlan.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
 
@@ -84,8 +91,20 @@ class DietPlanRepository {
       final response = await _dioClient.dio.get(
         '${ApiConstants.apiV1}/recipes/$recipeId',
       );
-      return Recipe.fromJson(response.data);
+      final data = response.data;
+      return Recipe.fromJson(
+        data is Map<String, dynamic> ? data : Map<String, dynamic>.from(data as Map),
+      );
     } catch (e) {
+      // Fall back to recipe embedded in the current plan (AI / professional ids).
+      try {
+        final plan = await getCurrentDietPlan();
+        for (final meal in plan.meals) {
+          if (meal.recipeId == recipeId && meal.recipe != null) {
+            return meal.recipe!;
+          }
+        }
+      } catch (_) {}
       throw Exception('Failed to fetch recipe: $e');
     }
   }
@@ -111,6 +130,27 @@ class DietPlanRepository {
     }
   }
 
+  /// Log meal done / skipped → updates adherence and nutrition learning.
+  Future<Map<String, dynamic>> logMealAdherence({
+    required int day,
+    required String mealType,
+    required String status, // done | skipped
+    String? recipeName,
+    String? date,
+  }) async {
+    final response = await _dioClient.dio.post(
+      ApiConstants.mealAdherence,
+      data: {
+        'day': day,
+        'meal_type': mealType,
+        'status': status,
+        if (recipeName != null) 'recipe_name': recipeName,
+        if (date != null) 'date': date,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> getPreferences() async {
     final response = await _dioClient.dio.get(
       '${ApiConstants.apiV1}/diet-plans/preferences',
@@ -132,6 +172,7 @@ class DietPlanRepository {
         'dislikes': dislikes,
         'regenerate_plan': regeneratePlan,
       },
+      options: regeneratePlan ? _aiPlanOptions : null,
     );
     final data = response.data as Map<String, dynamic>;
     if (data['plan'] != null) {

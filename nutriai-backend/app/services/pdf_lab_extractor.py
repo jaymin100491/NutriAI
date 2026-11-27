@@ -1,5 +1,9 @@
 """
 Extract text from uploaded lab PDFs for paste-parser ingestion.
+
+Labcorp Patient Reports are text-based (not scans). We use pypdf text extraction.
+True OCR (image-only PDFs) is not required for these demos; if extraction fails,
+the API asks the user to paste markers.
 """
 from __future__ import annotations
 
@@ -28,7 +32,8 @@ def extract_text_from_pdf(file_bytes: bytes) -> Tuple[str, int]:
     text = "\n".join(pages).strip()
     if len(text) < 20:
         raise ValueError(
-            "Could not extract enough text from this PDF. "
-            "Try a text-based report or paste markers manually."
+            "Could not extract enough text from this PDF (it may be a scan/image). "
+            "These Labcorp Patient Reports should be text PDFs — try another export, "
+            "or paste markers manually."
         )
     return text, len(reader.pages)

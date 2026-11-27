@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/diet_plan_provider.dart';
 import '../../providers/lab_result_provider.dart';
 import '../main_navigation_screen.dart';
+import '../onboarding/demographics_onboarding_screen.dart';
 
 class PasteLabsScreen extends ConsumerStatefulWidget {
   final bool allowSkip;
@@ -52,7 +53,7 @@ Hemoglobin A1c  6.2  %  4.8-5.6  High''';
       SnackBar(content: Text(_success!), duration: const Duration(seconds: 4)),
     );
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+      MaterialPageRoute(builder: (_) => const DemographicsOnboardingScreen()),
     );
   }
 
@@ -92,34 +93,61 @@ Hemoglobin A1c  6.2  %  4.8-5.6  High''';
         type: FileType.custom,
         allowedExtensions: const ['pdf'],
         withData: true,
+        allowMultiple: true,
       );
       if (result == null || result.files.isEmpty) {
         setState(() => _saving = false);
         return;
       }
-      final file = result.files.first;
-      final bytes = file.bytes;
-      if (bytes == null || bytes.isEmpty) {
+
+      final files = result.files.where((f) => (f.bytes?.isNotEmpty ?? false)).toList();
+      if (files.isEmpty) {
         setState(() {
           _saving = false;
           _error = 'Could not read PDF bytes. Try another file or paste text.';
         });
         return;
       }
-      final msg = await ref.read(allLabResultsProvider.notifier).uploadPdf(
-            bytes: bytes,
-            filename: file.name,
-            testDate: _dateController.text.trim().isEmpty ? null : _dateController.text.trim(),
+
+      String? lastMsg;
+      for (var i = 0; i < files.length; i++) {
+        final file = files[i];
+        final isLast = i == files.length - 1;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isLast
+                    ? 'Processing ${file.name} and generating your plan…'
+                    : 'Saving ${file.name} (${i + 1}/${files.length})…',
+              ),
+              duration: const Duration(seconds: 2),
+            ),
           );
-      if (!mounted) return;
-      if (msg != null && msg.startsWith('ERROR:')) {
-        setState(() {
-          _saving = false;
-          _error = msg.substring(6);
-        });
-        return;
+        }
+        final msg = await ref.read(allLabResultsProvider.notifier).uploadPdf(
+              bytes: file.bytes!,
+              filename: file.name,
+              testDate: _dateController.text.trim().isEmpty
+                  ? null
+                  : _dateController.text.trim(),
+              // Store history on early files; generate plan only after the last PDF.
+              generatePlan: isLast,
+            );
+        if (!mounted) return;
+        if (msg != null && msg.startsWith('ERROR:')) {
+          setState(() {
+            _saving = false;
+            _error = msg.substring(6);
+          });
+          return;
+        }
+        lastMsg = msg;
       }
-      await _finishSuccess(msg);
+      await _finishSuccess(
+        lastMsg ??
+            'Saved ${files.length} lab PDF(s) and prepared your Mon–Sun plan.',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -157,8 +185,9 @@ Hemoglobin A1c  6.2  %  4.8-5.6  High''';
                 border: Border.all(color: Colors.teal.shade100),
               ),
               child: const Text(
-                'Welcome — upload a lab PDF or paste markers from MyChart / Labcorp / your portal.\n\n'
-                'We’ll store your results, derive goals, and build your Mon–Sun diet plan in about a minute.\n\n'
+                'Welcome — upload one or more Labcorp Patient Report PDFs (or paste markers).\n\n'
+                'We extract and store each panel in your history, derive goals, then build your '
+                'Mon–Sun diet plan. Multiple PDFs are supported — pick all 7 at once for the demo.\n\n'
                 'Track biometrics daily. Every Friday we prepare next week’s plan from your progress.',
                 style: TextStyle(fontSize: 13, height: 1.4),
               ),
@@ -167,7 +196,7 @@ Hemoglobin A1c  6.2  %  4.8-5.6  High''';
             ElevatedButton.icon(
               onPressed: _saving ? null : _pickPdf,
               icon: const Icon(Icons.picture_as_pdf),
-              label: const Text('Upload lab PDF'),
+              label: const Text('Upload lab PDF(s)'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 backgroundColor: AppTheme.primaryColor,

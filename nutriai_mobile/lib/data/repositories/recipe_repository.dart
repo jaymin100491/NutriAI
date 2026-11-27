@@ -61,11 +61,18 @@ class RecipeRepository {
       final response = await _dioClient.dio.get(
         '${ApiConstants.apiV1}/recipes/favorites',
       );
-      return (response.data as List)
-          .map((json) => Recipe.fromJson(json))
+      final data = response.data;
+      if (data is! List) return [];
+      return data
+          .map((json) => Recipe.fromJson(
+                json is Map<String, dynamic>
+                    ? json
+                    : Map<String, dynamic>.from(json as Map),
+              ))
           .toList();
-    } catch (e) {
-      throw Exception('Failed to fetch favorite recipes: $e');
+    } catch (_) {
+      // Favorites are optional — never block the recipes tab.
+      return [];
     }
   }
 

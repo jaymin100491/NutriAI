@@ -13,6 +13,7 @@ class ChatState {
   final String? error;
   final List<String> suggestions;
   final bool planModified;
+  final String? statusMessage;
 
   ChatState({
     this.messages = const [],
@@ -20,6 +21,7 @@ class ChatState {
     this.error,
     this.suggestions = const [],
     this.planModified = false,
+    this.statusMessage,
   });
 
   ChatState copyWith({
@@ -28,6 +30,7 @@ class ChatState {
     String? error,
     List<String>? suggestions,
     bool? planModified,
+    Object? statusMessage = _unset,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -35,8 +38,50 @@ class ChatState {
       error: error,
       suggestions: suggestions ?? this.suggestions,
       planModified: planModified ?? this.planModified,
+      statusMessage: identical(statusMessage, _unset)
+          ? this.statusMessage
+          : statusMessage as String?,
     );
   }
+}
+
+const Object _unset = Object();
+
+/// Detect cuisine rebuild intent for progress copy (mirrors backend cues).
+String? cuisineRebuildStatus(String message) {
+  final msg = message.toLowerCase();
+  const cuisines = [
+    'indian',
+    'mexican',
+    'thai',
+    'mediterranean',
+    'japanese',
+    'chinese',
+    'korean',
+    'italian',
+    'middle eastern',
+    'ethiopian',
+    'american',
+  ];
+  String? found;
+  for (final c in cuisines) {
+    if (RegExp('\\b${RegExp.escape(c)}\\b').hasMatch(msg)) {
+      found = c[0].toUpperCase() + c.substring(1);
+      break;
+    }
+  }
+  if (found == null) return null;
+
+  final rebuildCue = RegExp(
+    r'\b(want|switch|change|make|rebuild|regenerate|give|prefer|try|do|all|entire|week|meals?|plans?|diet|food|cuisine|dishes|instead)\b',
+  ).hasMatch(msg);
+  final foodCue = RegExp(
+    r'\b(food|meals?|cuisine|dishes|diet|week)\b',
+  ).hasMatch(msg);
+  if (rebuildCue || foodCue) {
+    return 'Rebuilding your $found week…';
+  }
+  return null;
 }
 
 class ChatNotifier extends StateNotifier<ChatState> {
@@ -61,10 +106,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
       timestamp: DateTime.now().toIso8601String(),
     );
 
+    final rebuildStatus = cuisineRebuildStatus(message);
+
     state = state.copyWith(
       messages: [...state.messages, userMsg],
       isLoading: true,
       error: null,
+      statusMessage: rebuildStatus ?? 'Thinking with your labs…',
+      planModified: false,
     );
 
     try {
@@ -85,11 +134,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
         isLoading: false,
         suggestions: response.suggestions,
         planModified: response.planModified || response.goalsUpdated,
+        statusMessage: null,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to send message. Is the backend running?',
+        statusMessage: null,
       );
     }
   }

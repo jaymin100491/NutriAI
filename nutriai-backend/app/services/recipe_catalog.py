@@ -224,7 +224,19 @@ def reset_recipe_catalog() -> None:
 
 
 def get_recipe_by_id(recipe_id: int) -> Optional[Dict[str, Any]]:
-    return next((r for r in get_recipe_catalog() if r["id"] == recipe_id), None)
+    found = next((r for r in get_recipe_catalog() if r["id"] == recipe_id), None)
+    if found:
+        return found
+    # Professional / plan-embedded meals use 50xxx ids outside the procedural catalog
+    try:
+        from app.services.professional_meals import build_professional_catalog
+
+        found = next((r for r in build_professional_catalog() if r["id"] == recipe_id), None)
+        if found:
+            return found
+    except Exception:
+        pass
+    return None
 
 
 def search_recipes(

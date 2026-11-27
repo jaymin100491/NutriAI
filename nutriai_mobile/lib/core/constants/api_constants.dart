@@ -20,7 +20,11 @@ class ApiConstants {
   static const String labResultsImportFromPortal = '$apiV1/lab-results/import-from-portal';
   static const String labResultsPaste = '$apiV1/lab-results/paste';
   static const String labResultsUploadPdf = '$apiV1/lab-results/upload-pdf';
+  static const String labResultsPlanJobStatus = '$apiV1/lab-results/plan-job-status';
+  static const String labResultsTrends = '$apiV1/lab-results/trends';
   static const String latestLabResult = '$apiV1/lab-results/latest';
+  static const String sampleLabOrder = '$apiV1/lab-results/sample-lab-order';
+  static const String dietPlanPreferences = '$apiV1/diet-plans/preferences';
 
   static const String currentDietPlan = '$apiV1/diet-plans/current';
   static const String generateDietPlan = '$apiV1/diet-plans/generate';
@@ -31,10 +35,13 @@ class ApiConstants {
 
   static const String adminUsers = '$apiV1/admin/users';
   static const String adminStats = '$apiV1/admin/stats';
+  static const String adminCohort = '$apiV1/admin/cohort';
+  static const String adminCohortSeed = '$apiV1/admin/cohort/seed';
 
   static const String recipes = '$apiV1/recipes';
 
   static const String dailyTracking = '$apiV1/tracking/daily';
+  static const String mealAdherence = '$apiV1/tracking/meal-adherence';
   static const String progress = '$apiV1/tracking/progress';
 
   static const String goals = '$apiV1/goals';
@@ -44,6 +51,18 @@ class ApiConstants {
   static const String chat = '$apiV1/chat';
   static const String chatHistory = '$apiV1/chat/history';
 
-  static const int connectionTimeout = 45000;
-  static const int receiveTimeout = 45000;
+  /// Flutter web often ignores per-request Dio timeouts; keep the default
+  /// high enough for OpenAI week generation on free Render (can be 1–3 min).
+  static const int connectionTimeout = 180000;
+  static const int receiveTimeout = 180000;
+
+  /// Free Render cold starts can take 30–90s; auth uses these longer budgets.
+  static const int authConnectionTimeout = 180000;
+  static const int authReceiveTimeout = 180000;
+  static const int authMaxAttempts = 5;
+  static const int authRetryDelayMs = 6000;
+
+  /// OpenAI week generation on free Render often exceeds 45s.
+  static const int aiPlanConnectionTimeout = 180000;
+  static const int aiPlanReceiveTimeout = 180000;
 }

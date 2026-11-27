@@ -20,9 +20,27 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
+# Always allow local + Firebase Hosting demo origins (credentials require explicit origins, not "*")
+_cors_origins = list(settings.ALLOWED_ORIGINS or [])
+for _o in (
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "https://nutriai-pitch-demo.web.app",
+    "https://nutriai-pitch-demo.firebaseapp.com",
+):
+    if _o not in _cors_origins:
+        _cors_origins.append(_o)
+
+logger.info("CORS origins: %s (debug=%s)", _cors_origins, settings.DEBUG)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS if not settings.DEBUG else ["*"],
+    allow_origins=_cors_origins,
+    # When DEBUG, also accept any localhost / *.web.app / *.firebaseapp.com origin
+    allow_origin_regex=(
+        r"https://[\w-]+\.web\.app|https://[\w-]+\.firebaseapp\.com|http://(localhost|127\.0\.0\.1)(:\d+)?"
+        if settings.DEBUG
+        else None
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,10 +88,23 @@ async def startup():
     db = SessionLocal()
     try:
         if settings.DEMO_MODE:
-            from app.db.seed_demo import seed_demo_workspace
+            from app.db.seed_demo import seed_demo_workspace, seed_pitch_demo_user
 
             seed_demo_workspace(db)
             logger.info("Demo workspace seeded (jaymin@nutriai.app)")
+            seed_pitch_demo_user(db)
+            logger.info("Pitch demo user ready (jayminp@nutriai.app) — upload labs at first login")
+
+        if settings.DEMO_MODE and settings.SEED_DEMO_COHORT:
+            from app.db.seed_cohort import seed_demo_cohort
+
+            result = seed_demo_cohort(db, force=False)
+            logger.info(
+                "Demo cohort: seeded=%s users=%s retest=%s",
+                result.get("seeded"),
+                result.get("users"),
+                result.get("retest_ready"),
+            )
 
         # Ensure production admin account exists
         admin = repo.get_user_by_email(db, "admin@nutriai.app")
@@ -93,10 +124,11 @@ async def startup():
         db.close()
 
     logger.info(
-        "NutriAI started — env=%s mock_labs=%s demo_mode=%s",
+        "NutriAI started — env=%s mock_labs=%s demo_mode=%s cohort=%s",
         settings.ENVIRONMENT,
         settings.LABCORP_USE_MOCK,
         settings.DEMO_MODE,
+        settings.SEED_DEMO_COHORT,
     )
 
 

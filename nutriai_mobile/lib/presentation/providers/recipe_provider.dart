@@ -87,7 +87,7 @@ class RecipeState {
     List<Recipe>? filteredRecipes,
     RecipeFilters? filters,
     bool? isLoading,
-    String? error,
+    Object? error = _recipeUnset,
     Set<int>? favoriteIds,
   }) {
     return RecipeState(
@@ -95,11 +95,13 @@ class RecipeState {
       filteredRecipes: filteredRecipes ?? this.filteredRecipes,
       filters: filters ?? this.filters,
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      error: identical(error, _recipeUnset) ? this.error : error as String?,
       favoriteIds: favoriteIds ?? this.favoriteIds,
     );
   }
 }
+
+const Object _recipeUnset = Object();
 
 class RecipeNotifier extends StateNotifier<RecipeState> {
   final RecipeRepository _repository;
@@ -120,6 +122,7 @@ class RecipeNotifier extends StateNotifier<RecipeState> {
         recipes: recipes,
         filteredRecipes: recipes,
         isLoading: false,
+        error: null,
       );
     } catch (e) {
       state = state.copyWith(

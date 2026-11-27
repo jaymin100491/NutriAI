@@ -208,7 +208,10 @@ class _RecipesListScreenState extends ConsumerState<RecipesListScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => RecipeDetailScreen(recipeId: recipe.id),
+              builder: (_) => RecipeDetailScreen(
+                recipeId: recipe.id,
+                initialRecipe: recipe,
+              ),
             ),
           );
         },
@@ -321,7 +324,10 @@ class _RecipesListScreenState extends ConsumerState<RecipesListScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => RecipeDetailScreen(recipeId: recipe.id),
+              builder: (_) => RecipeDetailScreen(
+                recipeId: recipe.id,
+                initialRecipe: recipe,
+              ),
             ),
           );
         },

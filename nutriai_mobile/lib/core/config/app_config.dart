@@ -1,8 +1,11 @@
 /// Runtime configuration — override via --dart-define for staging/production.
 class AppConfig {
+  // Default to the live pitch API so Firebase Hosting builds keep working
+  // even if --dart-define is forgotten. Local runs should still pass
+  // --dart-define=API_BASE_URL=http://127.0.0.1:8000 via scripts/run-web-local.sh.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
+    defaultValue: 'https://nutriai-api-sqnm.onrender.com',
   );
 
   /// Legacy optional portal URL — unused for open-market paste demo.

@@ -14,11 +14,14 @@ from app.services.diet_plan_engine import (
     apply_plan_modifications,
     suggest_replacement_meal,
 )
+from datetime import datetime, timezone
+
 from app.services.weekly_plan_service import (
     ensure_current_week_plan,
     friday_release_next_week,
     schedule_status,
     generate_weekly_plan,
+    regenerate_remaining_days,
 )
 from app.services.lab_result_service import get_lab_results_for_user
 
@@ -43,6 +46,10 @@ class PreferencesUpdate(BaseModel):
     dislikes: Optional[List[str]] = None
     cuisine_preferences: Optional[List[str]] = None
     allergies: Optional[List[str]] = None
+    sex: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    activity_level: Optional[str] = None
+    demographics_complete: Optional[bool] = None
     regenerate_plan: bool = True
 
 
@@ -56,6 +63,11 @@ async def get_preferences(current_user: dict = Depends(get_current_user)):
         "allergies": prefs.get("allergies", current_user.get("allergies", [])),
         "favorites": prefs.get("favorites", []),
         "substitutions": prefs.get("substitutions", {}),
+        "preference_history": prefs.get("preference_history", []),
+        "sex": prefs.get("sex"),
+        "date_of_birth": prefs.get("date_of_birth"),
+        "activity_level": prefs.get("activity_level") or "moderate",
+        "demographics_complete": bool(prefs.get("demographics_complete")),
     }
 
 
@@ -68,7 +80,7 @@ async def get_current_diet_plan(current_user: dict = Depends(get_current_user)):
 @router.get("/schedule")
 async def get_plan_schedule(current_user: dict = Depends(get_current_user)):
     """Weekly cadence: Mon–Sun plans; next week released on Friday."""
-    return schedule_status(int(current_user["id"]))
+    return schedule_status(int(current_user["id"]), current_user)
 
 
 @router.post("/weekly/generate", response_model=DietPlanResponse)
@@ -199,24 +211,72 @@ async def update_preferences(
 ):
     user_id = int(current_user["id"])
     prefs = get_user_preferences(user_id)
+    before = {
+        "dietary_preference": prefs.get("dietary_preference", "omnivore"),
+        "dislikes": list(prefs.get("dislikes") or []),
+        "cuisine_preferences": list(prefs.get("cuisine_preferences") or []),
+        "allergies": list(prefs.get("allergies") or []),
+    }
+
     if request.dietary_preference is not None:
         prefs["dietary_preference"] = request.dietary_preference
     if request.dislikes is not None:
         prefs["dislikes"] = [d.strip().lower() for d in request.dislikes if d.strip()]
     if request.cuisine_preferences is not None:
-        prefs["cuisine_preferences"] = request.cuisine_preferences
+        from app.services.ai_meal_generator import normalize_cuisine_list
+
+        prefs["cuisine_preferences"] = normalize_cuisine_list(request.cuisine_preferences)
     if request.allergies is not None:
         prefs["allergies"] = request.allergies
+    if request.sex is not None:
+        sex = request.sex.strip().lower()
+        prefs["sex"] = sex if sex in ("male", "female") else prefs.get("sex")
+    if request.date_of_birth is not None:
+        prefs["date_of_birth"] = request.date_of_birth.strip()[:10]
+    if request.activity_level is not None:
+        level = request.activity_level.strip().lower()
+        prefs["activity_level"] = level if level else "moderate"
+    if request.demographics_complete is not None:
+        prefs["demographics_complete"] = bool(request.demographics_complete)
+
+    after = {
+        "dietary_preference": prefs.get("dietary_preference", "omnivore"),
+        "dislikes": list(prefs.get("dislikes") or []),
+        "cuisine_preferences": list(prefs.get("cuisine_preferences") or []),
+        "allergies": list(prefs.get("allergies") or []),
+    }
+    changed = before != after
+    history = list(prefs.get("preference_history") or [])
+    if changed:
+        history.append(
+            {
+                "changed_at": datetime.now(timezone.utc).isoformat(),
+                "from": before,
+                "to": after,
+                "scope": "remaining_days" if request.regenerate_plan else "prefs_only",
+            }
+        )
+        # Keep last 50 preference changes
+        prefs["preference_history"] = history[-50:]
+
     set_user_preferences(user_id, prefs)
 
     plan = None
-    if request.regenerate_plan:
+    patch_meta = None
+    if request.regenerate_plan and changed:
         user = {
             **current_user,
             "dietary_preference": prefs.get("dietary_preference", "omnivore"),
+            "cuisine_preferences": prefs.get("cuisine_preferences", []),
             "allergies": prefs.get("allergies", []),
         }
-        plan = generate_diet_plan(user=user, duration_days=7)
+        # Mid-week safe: keep today + past, only rebuild remaining days
+        plan = regenerate_remaining_days(user)
+        patch_meta = (plan or {}).get("preference_patch")
+        if history:
+            history[-1]["plan_patch"] = patch_meta
+            prefs["preference_history"] = history[-50:]
+            set_user_preferences(user_id, prefs)
 
     return {
         "preferences": {
@@ -226,8 +286,15 @@ async def update_preferences(
             "allergies": prefs.get("allergies", []),
             "favorites": prefs.get("favorites", []),
             "substitutions": prefs.get("substitutions", {}),
+            "sex": prefs.get("sex"),
+            "date_of_birth": prefs.get("date_of_birth"),
+            "activity_level": prefs.get("activity_level") or "moderate",
+            "demographics_complete": bool(prefs.get("demographics_complete")),
+            "preference_history": prefs.get("preference_history", []),
         },
         "plan_regenerated": plan is not None,
+        "remaining_days_only": bool(patch_meta),
+        "preference_patch": patch_meta,
         "plan": plan,
     }
 
