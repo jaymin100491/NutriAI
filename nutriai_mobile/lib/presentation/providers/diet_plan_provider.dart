@@ -196,6 +196,10 @@ class DietPlanNotifier extends StateNotifier<DietPlanState> {
     );
   }
 
+  Future<Map<String, String>> getMealAdherenceStatuses({String? date}) {
+    return _repository.getMealAdherenceStatuses(date: date);
+  }
+
   Future<void> updatePreferences({
     required String dietaryPreference,
     required List<String> cuisinePreferences,

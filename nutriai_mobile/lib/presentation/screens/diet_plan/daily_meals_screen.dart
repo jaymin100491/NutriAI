@@ -8,7 +8,7 @@ import '../../providers/diet_plan_provider.dart';
 import '../../widgets/craft/craft.dart';
 import 'recipe_detail_screen.dart';
 
-class DailyMealsScreen extends ConsumerWidget {
+class DailyMealsScreen extends ConsumerStatefulWidget {
   final int day;
   final String date;
   final List<dynamic> meals;
@@ -20,10 +20,42 @@ class DailyMealsScreen extends ConsumerWidget {
     required this.meals,
   });
 
+  @override
+  ConsumerState<DailyMealsScreen> createState() => _DailyMealsScreenState();
+}
+
+class _DailyMealsScreenState extends ConsumerState<DailyMealsScreen> {
   static const _mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+  /// meal_type → done | skipped
+  Map<String, String> _statusByMeal = {};
+  bool _loadingStatus = true;
+  String? _savingMealType;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_loadStatuses);
+  }
+
+  Future<void> _loadStatuses() async {
+    try {
+      final statuses = await ref
+          .read(dietPlanNotifierProvider.notifier)
+          .getMealAdherenceStatuses(date: widget.date);
+      if (!mounted) return;
+      setState(() {
+        _statusByMeal = statuses;
+        _loadingStatus = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingStatus = false);
+    }
+  }
+
   List<dynamic> get _orderedMeals {
-    final copy = List<dynamic>.from(meals);
+    final copy = List<dynamic>.from(widget.meals);
     copy.sort((a, b) {
       final ai = _mealOrder.indexOf((a.mealType as String?)?.toLowerCase() ?? '');
       final bi = _mealOrder.indexOf((b.mealType as String?)?.toLowerCase() ?? '');
@@ -33,8 +65,8 @@ class DailyMealsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final parsedDate = DateTime.parse(date);
+  Widget build(BuildContext context) {
+    final parsedDate = DateTime.parse(widget.date);
     final ordered = _orderedMeals;
 
     return Scaffold(
@@ -48,7 +80,7 @@ class DailyMealsScreen extends ConsumerWidget {
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 18),
             ),
             Text(
-              DateFormat('MMM d · Day $day').format(parsedDate),
+              DateFormat('MMM d · Day ${widget.day}').format(parsedDate),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w500,
@@ -71,15 +103,30 @@ class DailyMealsScreen extends ConsumerWidget {
                 const SizedBox(height: 18),
                 CraftSectionHeader(
                   title: 'Meals',
-                  subtitle: '${ordered.length} plated · breakfast → snack',
+                  subtitle: _statusSubtitle(ordered.length),
                 ).craftIn(delayMs: 40),
                 const SizedBox(height: 12),
-                ...ordered.asMap().entries.map(
-                      (e) => _buildMealCard(context, ref, e.value).craftIn(delayMs: 70 + e.key * 40),
-                    ),
+                if (_loadingStatus)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                else
+                  ...ordered.asMap().entries.map(
+                        (e) => _buildMealCard(e.value).craftIn(delayMs: 70 + e.key * 40),
+                      ),
               ],
             ),
     );
+  }
+
+  String _statusSubtitle(int mealCount) {
+    final done = _statusByMeal.values.where((s) => s == 'done').length;
+    final skipped = _statusByMeal.values.where((s) => s == 'skipped').length;
+    if (done == 0 && skipped == 0) {
+      return '$mealCount plated · breakfast → snack';
+    }
+    return '$done done · $skipped skipped · $mealCount plated';
   }
 
   Widget _buildDailySummary(List<dynamic> ordered) {
@@ -125,15 +172,25 @@ class DailyMealsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMealCard(BuildContext context, WidgetRef ref, dynamic meal) {
+  Widget _buildMealCard(dynamic meal) {
     final recipe = meal.recipe;
+    final mealType = (meal.mealType as String?)?.toLowerCase() ?? '';
+    final status = _statusByMeal[mealType];
+    final saving = _savingMealType == mealType;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.borderSubtle),
+        border: Border.all(
+          color: status == 'done'
+              ? AppTheme.successColor.withValues(alpha: 0.45)
+              : status == 'skipped'
+                  ? AppTheme.warningColor.withValues(alpha: 0.45)
+                  : AppTheme.borderSubtle,
+          width: status != null ? 1.5 : 1,
+        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -172,6 +229,10 @@ class DailyMealsScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  if (status != null) ...[
+                    const SizedBox(width: 8),
+                    _StatusBadge(status: status),
+                  ],
                   const Spacer(),
                   if (recipe != null)
                     Text(
@@ -235,26 +296,36 @@ class DailyMealsScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => _logAdherence(context, ref, meal, 'done'),
-                      icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: const Text('Done'),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => _logAdherence(context, ref, meal, 'skipped'),
-                      icon: const Icon(Icons.skip_next_rounded, size: 18),
-                      label: const Text('Skipped'),
-                    ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: () => _dislikeMeal(context, ref, meal),
-                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                      label: const Text('Swap'),
-                    ),
-                  ],
-                ),
+                if (saving)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  )
+                else
+                  Row(
+                    children: [
+                      _AdherenceButton(
+                        label: 'Done',
+                        icon: Icons.check_circle_outline,
+                        selected: status == 'done',
+                        selectedColor: AppTheme.successColor,
+                        onPressed: () => _logAdherence(meal, 'done'),
+                      ),
+                      _AdherenceButton(
+                        label: 'Skipped',
+                        icon: Icons.skip_next_rounded,
+                        selected: status == 'skipped',
+                        selectedColor: AppTheme.warningColor,
+                        onPressed: () => _logAdherence(meal, 'skipped'),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () => _dislikeMeal(meal),
+                        icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                        label: const Text('Swap'),
+                      ),
+                    ],
+                  ),
               ] else
                 Text(
                   'Recipe unavailable',
@@ -267,13 +338,22 @@ class DailyMealsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _logAdherence(
-    BuildContext context,
-    WidgetRef ref,
-    dynamic meal,
-    String status,
-  ) async {
+  Future<void> _logAdherence(dynamic meal, String status) async {
+    final mealType = (meal.mealType as String?)?.toLowerCase() ?? '';
+    // Tapping the same status again is a no-op visually (already logged)
+    if (_statusByMeal[mealType] == status) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            status == 'done' ? 'Already marked done' : 'Already marked skipped',
+          ),
+        ),
+      );
+      return;
+    }
+
     final messenger = ScaffoldMessenger.of(context);
+    setState(() => _savingMealType = mealType);
     try {
       final result = await ref.read(dietPlanNotifierProvider.notifier).logMealAdherence(
             day: meal.day as int,
@@ -282,11 +362,17 @@ class DailyMealsScreen extends ConsumerWidget {
             recipeName: meal.recipe?.name as String?,
             date: meal.date as String?,
           );
-      if (!context.mounted) return;
+      if (!mounted) return;
+      setState(() {
+        _statusByMeal = {..._statusByMeal, mealType: status};
+        _savingMealType = null;
+      });
       final msg = result['message']?.toString() ??
           (status == 'done' ? 'Logged as done' : 'Logged as skipped');
       messenger.showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
+      if (!mounted) return;
+      setState(() => _savingMealType = null);
       messenger.showSnackBar(
         SnackBar(
           content: Text('Could not log meal: $e'),
@@ -296,14 +382,14 @@ class DailyMealsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _dislikeMeal(BuildContext context, WidgetRef ref, dynamic meal) async {
+  Future<void> _dislikeMeal(dynamic meal) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(dietPlanNotifierProvider.notifier).dislikeMeal(
             day: meal.day as int,
             mealType: meal.mealType as String,
           );
-      if (context.mounted) {
+      if (mounted) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Swapped with a better match for your preferences')),
         );
@@ -318,6 +404,83 @@ class DailyMealsScreen extends ConsumerWidget {
 
   String _formatMealType(String mealType) {
     return mealType[0].toUpperCase() + mealType.substring(1).toLowerCase();
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String status;
+
+  const _StatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final done = status == 'done';
+    final color = done ? AppTheme.successColor : AppTheme.warningColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            done ? Icons.check_circle : Icons.skip_next_rounded,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            done ? 'Done' : 'Skipped',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdherenceButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color selectedColor;
+  final VoidCallback onPressed;
+
+  const _AdherenceButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.selectedColor,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (selected) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: TextButton.icon(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            foregroundColor: selectedColor,
+            backgroundColor: selectedColor.withValues(alpha: 0.12),
+          ),
+          icon: Icon(icon, size: 18),
+          label: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+        ),
+      );
+    }
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+    );
   }
 }
 
