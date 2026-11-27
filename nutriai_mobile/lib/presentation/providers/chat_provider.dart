@@ -50,6 +50,28 @@ const Object _unset = Object();
 /// Detect cuisine rebuild intent for progress copy (mirrors backend cues).
 String? cuisineRebuildStatus(String message) {
   final msg = message.toLowerCase();
+
+  // Explicit confirm of a pending proposal
+  if (RegExp(
+        r'^(yes|yeah|yep|sure|ok|okay|go ahead|do it|please do|confirm|apply|rebuild)\b',
+      ).hasMatch(msg) ||
+      RegExp(r'\b(yes|go ahead|do it).{0,20}\b(rebuild|update|apply|change)\b')
+          .hasMatch(msg)) {
+    return 'Applying your cuisine update…';
+  }
+
+  // Advisory / "just asking" — do not show rebuild spinner
+  if (RegExp(
+        r"\b(don'?t|do not)\s+(update|change|rebuild|modify)\b",
+      ).hasMatch(msg) ||
+      RegExp(r'\b(just|only)\s+(asking|wondering|tell me|let me know)\b')
+          .hasMatch(msg) ||
+      (msg.contains('?') &&
+          RegExp(r'\b(can i|could i|can we|could we|would it|is it possible)\b')
+              .hasMatch(msg))) {
+    return 'Checking what I can do…';
+  }
+
   const cuisines = [
     'indian',
     'mexican',

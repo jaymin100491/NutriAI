@@ -5,7 +5,7 @@ Uses OpenAI/Claude with a full meal inventory; never invents dishes.
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
@@ -540,10 +540,12 @@ Learned substitutions: {subs_text}
 
 CAPABILITIES:
 1. Explain / cook any meal on THEIR plan (ingredients + quantities + steps)
-2. Rebuild the week for a cuisine (e.g. all-Indian week) when the user asks
-3. Swap ingredients across the week when asked
-4. Reprioritize goals / regenerate plan when asked
-5. Answer nutrition questions grounded in THEIR labs and goals
+2. Rebuild the week for a cuisine when the user clearly asks (e.g. “Indian food this week”)
+3. If they only ask whether a change is possible (“can I…?”, “just let me know”, “don’t update”),
+   explain and wait for an explicit yes before changing the plan — never mutate on a question alone
+4. Swap ingredients across the week when asked
+5. Reprioritize goals / regenerate plan when asked
+6. Answer nutrition questions grounded in THEIR labs and goals
 """
 
 
@@ -569,16 +571,114 @@ def _extract_cuisine_mention(message: str) -> Optional[str]:
     return None
 
 
+def _is_advisory_cuisine_ask(message: str) -> bool:
+    """
+    True when the user is asking / exploring — do NOT mutate the plan yet.
+    e.g. "Can I switch to Indian going forward? Just let me know — don't update."
+    """
+    msg = message.lower().strip()
+    if re.search(
+        r"\b(don'?t|do not|never)\s+(update|change|rebuild|regenerate|modify|touch|apply)\b",
+        msg,
+    ):
+        return True
+    if re.search(
+        r"\b(just|only)\s+(asking|wondering|curious|checking|tell me|let me know|want to know)\b",
+        msg,
+    ):
+        return True
+    if re.search(
+        r"\b(without|before)\s+(changing|updating|rebuilding|applying|doing)\b",
+        msg,
+    ):
+        return True
+    if re.search(
+        r"\b(hypothetically|for now just|no changes yet|not yet|don'?t do it)\b",
+        msg,
+    ):
+        return True
+    # Capability / permission questions — answer first, confirm before rebuild
+    if "?" in msg and re.search(
+        r"\b(can i|could i|can we|could we|would it|is it possible|what if|should i)\b",
+        msg,
+    ):
+        # Exception: clear execute-now language still present
+        if re.search(
+            r"\b(go ahead|do it now|rebuild now|update now|please change|please switch|"
+            r"please make|please update|please rebuild)\b",
+            msg,
+        ):
+            return False
+        return True
+    return False
+
+
+def _wants_permanent_cuisine(message: str) -> bool:
+    msg = message.lower()
+    return any(
+        w in msg
+        for w in (
+            "always",
+            "from now on",
+            "permanently",
+            "every week",
+            "going forward",
+            "ongoing",
+            "long term",
+            "long-term",
+            "for good",
+            "default",
+        )
+    )
+
+
+def _detect_nonveg_preference(message: str) -> Optional[bool]:
+    """True → omnivore/non-veg, False → vegetarian, None → unspecified."""
+    msg = message.lower()
+    if re.search(r"\b(non[-\s]?veg|nonvegetarian|non-vegetarian|with meat|omnivore)\b", msg):
+        return True
+    if re.search(r"\b(veg only|vegetarian|vegan|no meat|plant[-\s]?based)\b", msg):
+        return False
+    return None
+
+
+def _is_rebuild_confirmation(message: str) -> bool:
+    msg = message.lower().strip()
+    if re.search(
+        r"\b(don'?t|do not|no thanks|not yet|cancel|never ?mind|stop)\b",
+        msg,
+    ):
+        return False
+    # Normalize light punctuation so "yes, go ahead" matches
+    compact = re.sub(r"[,!;:]+", " ", msg)
+    compact = re.sub(r"\s+", " ", compact).strip()
+    if re.fullmatch(
+        r"(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|please do|confirm|"
+        r"apply( it)?|rebuild( it)?|update( it)?|change( it)?|"
+        r"yes please|ok do it|yes go ahead|sounds good|let'?s do it|"
+        r"yes go ahead|yeah go ahead|yep go ahead)[!?.\s]*",
+        compact,
+    ):
+        return True
+    if re.search(
+        r"\b(yes|yeah|yep|sure|ok|okay)\b.{0,20}\b(go ahead|do it|please|rebuild|update|apply|change)\b",
+        compact,
+    ):
+        return True
+    if re.search(
+        r"\b(go ahead|do it|please do|sounds good|let'?s do it)\b",
+        compact,
+    ) and len(compact.split()) <= 8:
+        return True
+    return False
+
+
 def _detect_cuisine_week_request(message: str) -> Optional[str]:
     """
-    Natural-language cuisine preference → rebuild this week's plan.
+    Natural-language cuisine preference → candidate for week rebuild.
 
-    Users should not need a magic phrase. Examples that should work:
-      - "Indian food"
-      - "I want Mexican this week"
-      - "Can we do Thai?"
-      - "Make my meals Indian"
-      - "Switch to Mediterranean"
+    Clear imperatives still match. Advisory / "just asking" questions do not
+    auto-apply — see _is_advisory_cuisine_ask + pending confirm flow.
     """
     msg = message.lower().strip()
     found = _extract_cuisine_mention(message)
@@ -627,6 +727,54 @@ def _detect_cuisine_week_request(message: str) -> Optional[str]:
     return None
 
 
+def _apply_cuisine_week(
+    user_id: int,
+    user: Dict[str, Any],
+    cuisine: str,
+    *,
+    permanent: bool,
+    dietary_override: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Rebuild current week for cuisine; optionally persist long-term prefs."""
+    prefs = get_user_preferences(user_id)
+    if permanent:
+        prefs = {**prefs, "cuisine_preferences": [cuisine]}
+        if dietary_override:
+            prefs["dietary_preference"] = dietary_override
+        set_user_preferences(user_id, prefs)
+    elif dietary_override:
+        # Week rebuild only — don't persist diet unless permanent
+        user = {**user, "dietary_preference": dietary_override}
+
+    plan = generate_weekly_plan(
+        user,
+        for_next_week=False,
+        allow_ai=True,
+        cuisine_override=[cuisine],
+        cuisine_mode="exclusive",
+    )
+    sample = []
+    for meal in (plan.get("meals") or [])[:4]:
+        name = _meal_recipe(meal).get("name")
+        if name:
+            sample.append(f"{meal.get('meal_type')}: {name}")
+    sample_txt = ("\nExamples: " + "; ".join(sample)) if sample else ""
+    week_note = (
+        f"Saved **{cuisine}** as your ongoing cuisine preference"
+        + (f" and set diet to **{dietary_override}**" if dietary_override and permanent else "")
+        + "."
+        if permanent
+        else "Applied for **this week only** — your long-term cuisine prefs are unchanged."
+    )
+    message = (
+        f"Done — rebuilt your Mon–Sun plan around **{cuisine}** food "
+        f"({plan.get('target_calories')} kcal/day · {plan.get('generation_source', 'engine')}).\n\n"
+        f"{week_note}\n"
+        f"Open the **Plan** tab for every meal.{sample_txt}"
+    )
+    return {"plan": plan, "message": message}
+
+
 def _is_greeting_only(message: str) -> bool:
     """Word-boundary greetings — never match 'hi' inside 'this'."""
     msg = message.lower().strip()
@@ -649,48 +797,106 @@ def _rule_based_actions(user_id: int, message: str) -> Dict[str, Any]:
     plan_modified = False
     goals_updated = False
     response_parts: List[str] = []
+    prefs = get_user_preferences(user_id)
+    pending = prefs.get("pending_cuisine_rebuild")
 
-    cuisine = _detect_cuisine_week_request(message)
-    if cuisine:
-        prefs = get_user_preferences(user_id)
-        # This-week-only: don't permanently overwrite prefs unless they ask forever
-        permanent = any(w in msg for w in ("always", "from now on", "permanently", "every week"))
-        if permanent:
-            prefs = {**prefs, "cuisine_preferences": [cuisine]}
+    # Confirm / cancel a previously proposed cuisine rebuild
+    if pending and isinstance(pending, dict) and pending.get("cuisine"):
+        if re.search(r"\b(don'?t|do not|no thanks|not yet|cancel|never ?mind|stop|nope)\b", msg) and not re.search(
+            r"\b(yes|yeah|go ahead|do it)\b", msg
+        ):
+            prefs = {**prefs, "pending_cuisine_rebuild": None}
             set_user_preferences(user_id, prefs)
-        try:
-            plan = generate_weekly_plan(
-                user,
-                for_next_week=False,
-                allow_ai=True,
-                cuisine_override=[cuisine],
-                cuisine_mode="exclusive",
+            response_parts.append(
+                "No problem — left your plan unchanged. "
+                "Say something like “Indian food this week” when you want me to rebuild."
             )
-            plan_modified = True
-            sample = []
-            for meal in (plan.get("meals") or [])[:4]:
-                name = _meal_recipe(meal).get("name")
-                if name:
-                    sample.append(f"{meal.get('meal_type')}: {name}")
-            sample_txt = ("\nExamples: " + "; ".join(sample)) if sample else ""
-            week_note = (
-                f"Saved **{cuisine}** as your ongoing cuisine preference."
+        elif _is_rebuild_confirmation(message) or (
+            _detect_cuisine_week_request(message) == pending.get("cuisine")
+            and not _is_advisory_cuisine_ask(message)
+        ):
+            cuisine = str(pending["cuisine"])
+            permanent = bool(pending.get("permanent"))
+            dietary = pending.get("dietary_override")
+            prefs = {**prefs, "pending_cuisine_rebuild": None}
+            set_user_preferences(user_id, prefs)
+            try:
+                result = _apply_cuisine_week(
+                    user_id,
+                    user,
+                    cuisine,
+                    permanent=permanent,
+                    dietary_override=dietary if isinstance(dietary, str) else None,
+                )
+                plan_modified = True
+                response_parts.append(result["message"])
+            except Exception as e:
+                response_parts.append(
+                    f"I tried to apply the **{cuisine}** week but it failed: {e}. "
+                    "Try again in a moment."
+                )
+
+    cuisine = _detect_cuisine_week_request(message) if not response_parts else None
+    if cuisine and not response_parts:
+        permanent = _wants_permanent_cuisine(message)
+        nonveg = _detect_nonveg_preference(message)
+        dietary_override = None
+        if nonveg is True:
+            dietary_override = "omnivore"
+        elif nonveg is False:
+            dietary_override = "vegetarian"
+
+        # Questions / "don't update" → explain + ask confirm (never mutate yet)
+        if _is_advisory_cuisine_ask(message):
+            pending_payload = {
+                "cuisine": cuisine,
+                "permanent": permanent,
+                "dietary_override": dietary_override,
+                "proposed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            prefs = {**prefs, "pending_cuisine_rebuild": pending_payload}
+            set_user_preferences(user_id, prefs)
+            scope = (
+                f"all future weeks (**{cuisine}** as your ongoing preference"
+                + (f", **{dietary_override}**" if dietary_override else "")
+                + ")"
                 if permanent
-                else f"Applied for **this week only** — your long-term cuisine prefs are unchanged."
+                else f"**this week only** around **{cuisine}**"
             )
+            diet_note = ""
+            if dietary_override == "omnivore":
+                diet_note = " Meals would include non-veg Indian options (chicken, fish, etc.) where they fit your goals."
+            elif dietary_override == "vegetarian":
+                diet_note = " Meals would stay vegetarian Indian."
             response_parts.append(
-                f"Got it — I heard you want **{cuisine}** food, so I rebuilt your Mon–Sun plan "
-                f"around that ({plan.get('target_calories')} kcal/day · {plan.get('generation_source', 'engine')}).\n\n"
-                f"{week_note}\n"
-                f"Open the **Plan** tab for every meal.{sample_txt}\n\n"
-                "You can say this naturally anytime — e.g. “Thai food”, “I want Mexican”, "
-                "or “switch to Mediterranean” — no special wording needed."
+                f"Yes — I can rebuild your plan for {scope}.{diet_note}\n\n"
+                "**I haven’t changed anything yet.**\n\n"
+                "Reply **yes, go ahead** to apply it, or **no** to leave your current plan as-is."
             )
-        except Exception as e:
-            response_parts.append(
-                f"I understood you want an all-**{cuisine}** week, but rebuilding failed: {e}. "
-                "Try again in a moment or tap Rebuild week on the Plan tab."
-            )
+        else:
+            try:
+                result = _apply_cuisine_week(
+                    user_id,
+                    user,
+                    cuisine,
+                    permanent=permanent,
+                    dietary_override=dietary_override,
+                )
+                plan_modified = True
+                # Clear any stale pending proposal
+                if prefs.get("pending_cuisine_rebuild"):
+                    prefs = {**prefs, "pending_cuisine_rebuild": None}
+                    set_user_preferences(user_id, prefs)
+                response_parts.append(
+                    result["message"]
+                    + "\n\nYou can say this naturally anytime — e.g. “Thai food”, “I want Mexican”, "
+                    "or “switch to Mediterranean”."
+                )
+            except Exception as e:
+                response_parts.append(
+                    f"I understood you want an all-**{cuisine}** week, but rebuilding failed: {e}. "
+                    "Try again in a moment or tap Rebuild week on the Plan tab."
+                )
 
     elif _detect_swap(message):
         swap = _detect_swap(message)
@@ -856,6 +1062,29 @@ async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
 
     rule_result = _rule_based_actions(user_id, message)
 
+    # Rule-handled replies (incl. advisory "I haven't changed anything yet") win
+    # over cook/plan grounded answers and LLM so we never contradict a confirm gate.
+    if rule_result.get("handled") and rule_result.get("message"):
+        final_message = rule_result["message"]
+        path = "plan_edit" if rule_result["plan_modified"] else "rule_confirm"
+        suggestions = rule_result["suggestions"]
+        metadata = {
+            "plan_modified": rule_result["plan_modified"],
+            "goals_updated": rule_result["goals_updated"],
+            "suggestions": suggestions,
+            "grounded": False,
+            "path": path,
+        }
+        add_chat_message(user_id, "assistant", final_message, metadata)
+        plan = get_or_create_plan(_get_user(user_id)) if rule_result["plan_modified"] else None
+        return {
+            "response": final_message,
+            "plan_modified": rule_result["plan_modified"],
+            "goals_updated": rule_result["goals_updated"],
+            "suggestions": suggestions,
+            "updated_plan_id": plan["id"] if plan else None,
+        }
+
     grounded = None
     if not rule_result["plan_modified"]:
         grounded = _plan_grounded_answer(user_id, message)
@@ -868,17 +1097,9 @@ async def process_chat_message(user_id: int, message: str) -> Dict[str, Any]:
     if not llm_response:
         llm_response = await _call_claude(system, history, message)
 
-    if rule_result["plan_modified"] and rule_result["message"]:
-        final_message = rule_result["message"]
-        if llm_response:
-            final_message = final_message + "\n\n" + llm_response
-        path = "plan_edit"
-    elif grounded:
+    if grounded:
         final_message = grounded
         path = "plan_grounded"
-    elif rule_result.get("handled") and rule_result["message"]:
-        final_message = rule_result["message"]
-        path = "greeting"
     elif llm_response:
         final_message = llm_response
         path = "llm"
