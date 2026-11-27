@@ -151,6 +151,26 @@ class DietPlanRepository {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  Future<Map<String, String>> getMealAdherenceStatuses({String? date}) async {
+    final response = await _dioClient.dio.get(
+      ApiConstants.mealAdherence,
+      queryParameters: {
+        if (date != null) 'date': date,
+      },
+    );
+    final data = Map<String, dynamic>.from(response.data as Map);
+    final logs = (data['logs'] as List? ?? []).whereType<Map>();
+    final out = <String, String>{};
+    for (final e in logs) {
+      final mt = (e['meal_type'] ?? '').toString().toLowerCase();
+      final st = (e['status'] ?? '').toString().toLowerCase();
+      if (mt.isNotEmpty && (st == 'done' || st == 'skipped')) {
+        out[mt] = st;
+      }
+    }
+    return out;
+  }
+
   Future<Map<String, dynamic>> getPreferences() async {
     final response = await _dioClient.dio.get(
       '${ApiConstants.apiV1}/diet-plans/preferences',

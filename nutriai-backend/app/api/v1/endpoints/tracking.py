@@ -48,6 +48,20 @@ def _normalize_entry(user_id: int, data: dict, entry_id: Optional[int] = None) -
     }
 
 
+@router.get("/meal-adherence")
+async def get_meal_adherence(
+    date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return meal done/skipped logs (optionally for one day)."""
+    prefs = get_user_preferences(int(current_user["id"]))
+    logs = list(prefs.get("meal_adherence_logs") or [])
+    if date:
+        day = date[:10]
+        logs = [e for e in logs if e.get("date") == day]
+    return {"logs": logs, "date": date[:10] if date else None}
+
+
 @router.post("/meal-adherence")
 async def log_meal_adherence(
     request: MealAdherenceRequest,
