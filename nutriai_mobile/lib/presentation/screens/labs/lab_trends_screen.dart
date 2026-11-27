@@ -197,7 +197,7 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
           ),
         ),
         SizedBox(
-          height: 128,
+          height: 136,
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
             scrollDirection: Axis.horizontal,
@@ -206,23 +206,14 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
             itemBuilder: (_, i) {
               final c = cards[i];
               final tone = c['tone']?.toString() ?? 'neutral';
-              final accent = tone == 'attention'
-                  ? AppTheme.accentColor
-                  : tone == 'positive'
-                      ? AppTheme.successColor
-                      : AppTheme.primaryColor;
-              final bg = tone == 'attention'
-                  ? const Color(0xFFFFF1E8)
-                  : tone == 'positive'
-                      ? const Color(0xFFE9F7EF)
-                      : Colors.white;
+              final colors = _toneColors(tone);
               return Container(
-                width: 168,
-                padding: const EdgeInsets.all(16),
+                width: 158,
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                 decoration: BoxDecoration(
-                  color: bg,
+                  color: colors.$2,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.borderSubtle),
+                  border: Border.all(color: colors.$1.withValues(alpha: 0.22)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.03),
@@ -239,7 +230,7 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textSecondaryColor,
                       ),
@@ -247,22 +238,24 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
                     const Spacer(),
                     Text(
                       c['value']?.toString() ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -0.6,
-                        color: accent,
+                        letterSpacing: -0.5,
+                        color: colors.$1,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       c['subtitle']?.toString() ?? '',
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
-                        height: 1.25,
-                        color: AppTheme.textSecondaryColor,
+                        fontWeight: FontWeight.w600,
+                        color: colors.$1.withValues(alpha: 0.85),
                       ),
                     ),
                   ],
@@ -361,6 +354,23 @@ class _LabTrendsScreenState extends ConsumerState<LabTrendsScreen> {
         ],
       ),
     );
+  }
+
+  /// accent, background — status-driven palette so glance cards aren't all the same.
+  (Color, Color) _toneColors(String tone) {
+    switch (tone) {
+      case 'high':
+      case 'attention':
+        return (AppTheme.accentColor, const Color(0xFFFFF1E8));
+      case 'low':
+        return (const Color(0xFF1565C0), const Color(0xFFE8F1FB));
+      case 'positive':
+        return (AppTheme.successColor, const Color(0xFFE9F7EF));
+      case 'watch':
+        return (AppTheme.warningColor, const Color(0xFFFFF6E8));
+      default:
+        return (AppTheme.primaryColor, Colors.white);
+    }
   }
 
   Widget _filters() {
@@ -513,6 +523,8 @@ class _MarkerStoryCardState extends State<_MarkerStoryCard>
         return const Color(0xFF1565C0);
       case 'In range':
         return AppTheme.successColor;
+      case 'Watch':
+        return AppTheme.warningColor;
       default:
         return AppTheme.primaryColor;
     }

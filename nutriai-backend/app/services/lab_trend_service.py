@@ -348,21 +348,38 @@ def build_lab_trends(lab_results: List[Dict[str, Any]], *, patient_id: str = "pa
 def _summary_cards(trends: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     cards = []
     for t in trends:
-        if t["group"] not in ("lipids", "glucose", "body"):
+        if t["group"] not in ("lipids", "glucose", "body", "kidney"):
             continue
-        tone = "neutral"
-        if t["latest_status"] == "High":
-            tone = "attention"
-        elif t["direction"] == "down" and t["group"] == "lipids" and "ldl" in t["key"]:
-            tone = "positive"
-        elif t["direction"] == "up" and t["group"] == "lipids":
-            tone = "attention"
+        status = t.get("latest_status") or "Tracked"
+        direction = t.get("direction") or "flat"
+        pct = abs(float(t.get("percent_change") or 0))
+        key = t.get("key", "")
+
+        if status == "High":
+            tone = "high"
+        elif status == "Low":
+            tone = "low"
+        elif status == "In range":
+            # Improving lipid downtrend = positive; rising lipids still in range = watch
+            if direction == "down" and ("ldl" in key or "trig" in key or "cholesterol" in key):
+                tone = "positive"
+            elif direction == "up" and t["group"] == "lipids":
+                tone = "watch"
+            else:
+                tone = "positive"
+        else:
+            tone = "neutral"
+
+        arrow = {"up": "↑", "down": "↓", "flat": "→"}.get(direction, "→")
+        subtitle = f"{arrow}{pct:g}% · {status}"
         cards.append(
             {
                 "title": t["test_name"],
                 "value": f"{t['latest_value']}{(' ' + t['unit']) if t['unit'] else ''}",
-                "subtitle": f"{t['direction'].title()} {abs(t['percent_change'])}% · {t['latest_status']}",
+                "subtitle": subtitle,
                 "tone": tone,
+                "status": status,
+                "direction": direction,
                 "group": t["group"],
             }
         )

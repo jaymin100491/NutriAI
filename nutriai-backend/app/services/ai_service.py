@@ -16,10 +16,32 @@ from app.db.store import (
     get_chat_history,
     get_user_plan,
     get_user_preferences,
+    set_user_preferences,
 )
 from app.services.diet_plan_engine import apply_plan_modifications, generate_diet_plan, get_or_create_plan
 from app.services.goal_service import get_goals_for_user, parse_priority_from_message, update_goal_priorities
 from app.services.recipe_catalog import get_substitution_options
+from app.services.weekly_plan_service import generate_weekly_plan
+
+_KNOWN_CUISINES = [
+    "indian",
+    "mexican",
+    "thai",
+    "mediterranean",
+    "chinese",
+    "japanese",
+    "italian",
+    "korean",
+    "american",
+    "middle eastern",
+    "asian",
+    "vietnamese",
+    "greek",
+    "french",
+    "spanish",
+    "ethiopian",
+    "caribbean",
+]
 
 SWAP_PATTERNS = [
     r"(?:change|swap|replace|substitute)\s+(\w+)\s+(?:to|with|for)\s+(\w+)",
@@ -508,9 +530,10 @@ Learned substitutions: {subs_text}
 
 CAPABILITIES:
 1. Explain / cook any meal on THEIR plan (ingredients + quantities + steps)
-2. Swap ingredients across the week when asked
-3. Reprioritize goals / regenerate plan when asked
-4. Answer nutrition questions grounded in THEIR labs and goals
+2. Rebuild the week for a cuisine (e.g. all-Indian week) when the user asks
+3. Swap ingredients across the week when asked
+4. Reprioritize goals / regenerate plan when asked
+5. Answer nutrition questions grounded in THEIR labs and goals
 """
 
 
@@ -526,16 +549,107 @@ def _detect_swap(message: str) -> Optional[Tuple[str, str]]:
     return None
 
 
+def _detect_cuisine_week_request(message: str) -> Optional[str]:
+    """
+    Detect 'make this week all Indian / only Mexican food' style rebuilds.
+    Returns canonical cuisine name or None.
+    """
+    msg = message.lower()
+    found = None
+    for c in sorted(_KNOWN_CUISINES, key=len, reverse=True):
+        if c in msg:
+            found = " ".join(w.capitalize() for w in c.split())
+            break
+    if not found:
+        return None
+    intent = any(
+        p in msg
+        for p in (
+            "only",
+            "just have",
+            "replace",
+            "all plan",
+            "all meals",
+            "entire week",
+            "this week",
+            "for the week",
+            "switch to",
+            "change to",
+            "make all",
+            "make everything",
+            "cuisine",
+            "food for",
+        )
+    )
+    return found if intent else None
+
+
+def _is_greeting_only(message: str) -> bool:
+    """Word-boundary greetings — never match 'hi' inside 'this'."""
+    msg = message.lower().strip()
+    if re.fullmatch(r"(hi|hello|hey|yo|sup)[!?.\s]*", msg):
+        return True
+    if re.search(r"\b(what can you|how can you help|help me)\b", msg):
+        return True
+    # Short hello with nothing else actionable
+    if re.match(r"^(hi|hello|hey)\b", msg) and len(msg.split()) <= 4:
+        if not _detect_cuisine_week_request(message) and not _detect_swap(message):
+            if not any(re.search(p, msg) for p in REGENERATE_PATTERNS):
+                return True
+    return False
+
+
 def _rule_based_actions(user_id: int, message: str) -> Dict[str, Any]:
-    """Only structural plan changes — not free-form Q&A (that must be plan-grounded)."""
+    """Structural plan changes — cuisine rebuild, swaps, priorities, regenerate."""
     user = _get_user(user_id)
     msg = message.lower().strip()
     plan_modified = False
     goals_updated = False
     response_parts: List[str] = []
 
-    swap = _detect_swap(message)
-    if swap:
+    cuisine = _detect_cuisine_week_request(message)
+    if cuisine:
+        prefs = get_user_preferences(user_id)
+        # This-week-only: don't permanently overwrite prefs unless they ask forever
+        permanent = any(w in msg for w in ("always", "from now on", "permanently", "every week"))
+        if permanent:
+            prefs = {**prefs, "cuisine_preferences": [cuisine]}
+            set_user_preferences(user_id, prefs)
+        try:
+            plan = generate_weekly_plan(
+                user,
+                for_next_week=False,
+                allow_ai=True,
+                cuisine_override=[cuisine],
+                cuisine_mode="exclusive",
+            )
+            plan_modified = True
+            sample = []
+            for meal in (plan.get("meals") or [])[:4]:
+                name = _meal_recipe(meal).get("name")
+                if name:
+                    sample.append(f"{meal.get('meal_type')}: {name}")
+            sample_txt = ("\nExamples: " + "; ".join(sample)) if sample else ""
+            week_note = (
+                f"Saved **{cuisine}** as your ongoing cuisine preference."
+                if permanent
+                else f"Applied for **this week only** — your long-term cuisine prefs are unchanged."
+            )
+            response_parts.append(
+                f"Done — I rebuilt your Mon–Sun plan as an **all-{cuisine}** week "
+                f"({plan.get('target_calories')} kcal/day, source: {plan.get('generation_source', 'engine')}).\n\n"
+                f"{week_note}\n"
+                f"Open the **Plan** tab to see every meal.{sample_txt}"
+            )
+        except Exception as e:
+            response_parts.append(
+                f"I understood you want an all-**{cuisine}** week, but rebuilding failed: {e}. "
+                "Try again in a moment or tap Rebuild week on the Plan tab."
+            )
+
+    elif _detect_swap(message):
+        swap = _detect_swap(message)
+        assert swap is not None
         swap_from, swap_to = swap
         add_substitution_preference(user_id, swap_from, swap_to)
         try:
@@ -557,23 +671,23 @@ def _rule_based_actions(user_id: int, message: str) -> Dict[str, Any]:
         if new_order:
             updated = update_goal_priorities(user_id, new_order)
             goals_updated = True
-            plan = generate_diet_plan(user, goals_override=new_order)
+            plan = generate_weekly_plan(user, for_next_week=False, allow_ai=True)
             plan_modified = True
             order_text = "\n".join(f"  {g['priority']}. {g.get('label', g['goal_type'])}" for g in updated)
             response_parts.append(
-                f"Priorities updated and plan regenerated:\n{order_text}\n\n"
+                f"Priorities updated and week plan regenerated:\n{order_text}\n\n"
                 f"New plan: **{plan['title']}**."
             )
 
     elif any(re.search(p, msg) for p in REGENERATE_PATTERNS):
-        plan = generate_diet_plan(user)
+        plan = generate_weekly_plan(user, for_next_week=False, allow_ai=True)
         plan_modified = True
         response_parts.append(
-            f"Fresh 7-day plan ready: **{plan['title']}** ({plan.get('target_calories')} kcal/day). "
+            f"Fresh Mon–Sun plan ready: **{plan['title']}** ({plan.get('target_calories')} kcal/day). "
             "Open the Plan tab to cook each meal."
         )
 
-    elif any(w in msg for w in ("hello", "hi", "hey", "help", "what can you")):
+    elif _is_greeting_only(message):
         plan = _current_plan(user_id)
         sample = ""
         if plan and plan.get("meals"):
@@ -588,7 +702,7 @@ def _rule_based_actions(user_id: int, message: str) -> Dict[str, Any]:
             f"Hi {user['first_name']} — I’m your Coach grounded in **your** labs and current week plan.\n\n"
             "Ask things like:\n"
             "• “How do I make tomorrow’s breakfast?”\n"
-            "• “What’s for dinner on Friday?”\n"
+            "• “Replace this week with Indian food”\n"
             "• “Change tofu to paneer”\n"
             "• “Why is this meal good for my cholesterol?”"
             + sample

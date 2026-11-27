@@ -311,6 +311,7 @@ def generate_ai_week_meals(
     weekdays: List[str],
     lab_summary: Optional[str] = None,
     biometric_notes: Optional[List[str]] = None,
+    exclusive_cuisine: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """
     Returns {rationale, meals: [plan meal dicts with recipe]} or None.
@@ -320,16 +321,25 @@ def generate_ai_week_meals(
 
     cuisines = normalize_cuisine_list(cuisine_prefs) or ["Mediterranean", "American"]
     dietary = (dietary or "omnivore").lower()
+    if exclusive_cuisine and cuisines:
+        cuisine_rule = (
+            f"EXCLUSIVE CUISINE WEEK: EVERY meal (all 28) MUST be authentic {cuisines[0]} cuisine. "
+            f"cuisine_type must be \"{cuisines[0]}\" on every meal. No American, Mediterranean, or other cuisines."
+        )
+    else:
+        cuisine_rule = f"Cuisine preferences (prioritize these): {', '.join(cuisines)}"
     prompt = (
         f"Week starting: {week_start}\n"
         f"Weekdays in order: {', '.join(weekdays)}\n"
         f"Dietary preference: {dietary}\n"
-        f"Cuisine preferences (prioritize these): {', '.join(cuisines)}\n"
+        f"{cuisine_rule}\n"
         f"Dislikes / avoid: {', '.join(dislikes) if dislikes else 'none'}\n"
         f"Goals: {', '.join(goal_labels) if goal_labels else 'general wellness'}\n"
-        f"Daily calorie target: {target_calories}\n"
+        f"Daily calorie target: {target_calories} (distribute roughly across breakfast/lunch/dinner/snack)\n"
         f"Lab context: {lab_summary or 'n/a'}\n"
         f"Biometric notes: {'; '.join(biometric_notes or []) or 'n/a'}\n"
+        "Each meal needs 5–10 ingredients with real quantities AND 4–8 concrete cook steps.\n"
+        "Vary dishes across the week; keep names appetizing and specific (not 'Healthy Bowl').\n"
         "Generate the full 28-meal JSON now."
     )
 

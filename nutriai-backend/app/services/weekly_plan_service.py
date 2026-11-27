@@ -144,10 +144,13 @@ def _filter_professional(
     dislikes: List[str],
     goal_tags: List[str],
     cuisine_prefs: List[str],
+    *,
+    exclusive_cuisine: bool = False,
 ) -> List[Dict[str, Any]]:
     dietary = (dietary or "omnivore").lower()
     dislikes = [d.lower() for d in dislikes if d]
     catalog = build_professional_catalog()
+    cuisine_set = set(cuisine_prefs or [])
 
     scored: List[Tuple[int, Dict[str, Any]]] = []
     for r in catalog:
@@ -158,10 +161,15 @@ def _filter_professional(
         name = (r.get("name") or "").lower()
         if any(d in name for d in dislikes):
             continue
+        ctype = r.get("cuisine_type")
+        if exclusive_cuisine and cuisine_set and ctype not in cuisine_set:
+            # Soft prefer: still allow if name hints at cuisine
+            if not any(c.lower() in name for c in cuisine_set):
+                continue
 
         score = len(set(goal_tags) & set(r.get("health_tags", [])))
-        if cuisine_prefs and r.get("cuisine_type") in cuisine_prefs:
-            score += 2
+        if cuisine_set and ctype in cuisine_set:
+            score += 5 if exclusive_cuisine else 2
         scored.append((score, r))
 
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -181,12 +189,17 @@ def generate_weekly_plan(
     for_next_week: bool = False,
     lab_summary: Optional[str] = None,
     allow_ai: bool = True,
+    cuisine_override: Optional[List[str]] = None,
+    cuisine_mode: str = "prefer",
 ) -> Dict[str, Any]:
     """
     Generate a Mon–Sun professional weekly plan and archive the previous current plan.
 
     Targets come from the production NutritionTargetEngine (BMR/TDEE + labs + learning).
     New product users get OpenAI meals; cohort seeds stay on the catalog.
+
+    cuisine_override: force cuisine list for this generation (e.g. ["Indian"]).
+    cuisine_mode: "prefer" (weighted) or "exclusive" (almost all meals that cuisine).
     """
     user_id = int(user["id"])
     use_ai = allow_ai and ai_meal_generation_enabled_for(user)
@@ -237,12 +250,16 @@ def generate_weekly_plan(
         lab_summary = nutrition.lab_summary
 
     dietary = prefs.get("dietary_preference") or user.get("dietary_preference") or "omnivore"
-    dislikes = prefs.get("dislikes") or []
-    cuisine_prefs = normalize_cuisine_list(
-        prefs.get("cuisine_preferences")
-        or user.get("cuisine_preferences")
-        or ["Indian", "Mediterranean", "Mexican", "Thai", "Japanese", "American", "Middle Eastern", "Asian"]
-    )
+    dislikes = prefs.get("dislikes") or prefs.get("disliked_ingredients") or []
+    if cuisine_override:
+        cuisine_prefs = normalize_cuisine_list(cuisine_override) or ["Indian"]
+    else:
+        cuisine_prefs = normalize_cuisine_list(
+            prefs.get("cuisine_preferences")
+            or user.get("cuisine_preferences")
+            or ["Indian", "Mediterranean", "Mexican", "Thai", "Japanese", "American", "Middle Eastern", "Asian"]
+        )
+    exclusive_cuisine = (cuisine_mode or "prefer").lower() == "exclusive"
 
     weekdays: List[str] = []
     d = start
@@ -269,6 +286,7 @@ def generate_weekly_plan(
             weekdays=weekdays,
             lab_summary=lab_summary,
             biometric_notes=list(bio.get("notes") or []) + list(nutrition.notes),
+            exclusive_cuisine=exclusive_cuisine,
         )
         if ai and ai.get("meals"):
             generation_source = "ai_live"
@@ -298,7 +316,14 @@ def generate_weekly_plan(
         day_num = 1
         while day <= end:
             for meal_type in MEAL_TYPES:
-                pool = _filter_professional(meal_type, dietary, dislikes, goal_tags, cuisine_prefs)
+                pool = _filter_professional(
+                    meal_type,
+                    dietary,
+                    dislikes,
+                    goal_tags,
+                    cuisine_prefs,
+                    exclusive_cuisine=exclusive_cuisine,
+                )
                 pool = [p for p in pool if p["name"] not in recent_names[-8:]] or pool
                 recipe = deepcopy(rng.choice(pool[: max(3, min(12, len(pool)))]))
                 recent_names.append(recipe["name"])
@@ -344,6 +369,7 @@ def generate_weekly_plan(
         "macro_targets": macro_targets,
         "nutrition_engine": nutrition.as_engine_payload(),
         "cuisine_rotation": cuisine_prefs,
+        "cuisine_mode": "exclusive" if exclusive_cuisine else "prefer",
         "dietary_preference": dietary,
         "meals": meals,
         "shopping_list": _build_shopping_list(meals),
